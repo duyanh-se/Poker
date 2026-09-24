@@ -1,0 +1,32 @@
+{
+  "name": "poker-texas-holdem",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@10.9.3",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "npm": ">=10.9.3"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "tests/*"
+  ],
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspace=@poker/api && npm run test --workspace=@poker/web",
+    "build": "npm run build --workspaces --if-present",
+    "test:e2e": "npm run test --workspace=@poker/e2e",
+    "compose:check": "docker compose config"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.30.1",
+    "eslint": "9.30.1",
+    "eslint-config-next": "16.3.6",
+    "globals": "16.3.0",
+    "prettier": "3.6.2"
+  }
+}

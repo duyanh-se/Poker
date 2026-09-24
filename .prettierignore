@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.next-e2e/
+dist/
+coverage/
+playwright-report/
+test-results/
+package-lock.json
+apps/web/next-env.d.ts
+AGENTS.md
+AI_PROJECT_WORKFLOW.md
+.env.example
