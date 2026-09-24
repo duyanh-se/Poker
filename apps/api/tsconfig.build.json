@@ -1,7 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": "src"
+    "rootDir": "src",
+    "types": ["node"]
   },
-  "exclude": ["test", "dist", "node_modules"]
+  "exclude": ["test", "dist", "node_modules", "src/**/*.spec.ts"]
 }

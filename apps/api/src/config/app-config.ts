@@ -23,7 +23,7 @@ function readPort(value: string | undefined, fallback: number, name: string): nu
 
 export function loadAppConfig(environment: NodeJS.ProcessEnv = process.env): AppConfig {
   const nodeEnv = (environment.NODE_ENV ?? 'development') as AppConfig['nodeEnv'];
-  const publicOrigin = environment.PUBLIC_ORIGIN ?? 'http://localhost:3000';
+  const configuredPublicOrigin = environment.PUBLIC_ORIGIN ?? 'http://localhost:3000';
   const logLevel = (environment.LOG_LEVEL ?? 'log') as LogLevel;
   const sessionCookieName = environment.SESSION_COOKIE_NAME ?? 'poker_session';
 
@@ -31,8 +31,9 @@ export function loadAppConfig(environment: NodeJS.ProcessEnv = process.env): App
     throw new Error('NODE_ENV must be development, test, or production.');
   }
 
+  let publicOrigin: string;
   try {
-    new URL(publicOrigin);
+    publicOrigin = new URL(configuredPublicOrigin).origin;
   } catch {
     throw new Error('PUBLIC_ORIGIN must be a valid URL.');
   }
@@ -46,7 +47,7 @@ export function loadAppConfig(environment: NodeJS.ProcessEnv = process.env): App
   }
 
   return {
-    apiPort: readPort(environment.API_PORT, 3001, 'API_PORT'),
+    apiPort: readPort(environment.API_PORT ?? environment.PORT, 3001, 'API_PORT'),
     nodeEnv,
     publicOrigin,
     logLevel,

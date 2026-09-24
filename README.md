@@ -54,6 +54,14 @@ docker compose up --build
 
 Với `.env.example`, Caddy phục vụ local HTTP trên cổng 80. Khi deploy, đặt `CADDY_DOMAIN` là tên miền thực và `PUBLIC_ORIGIN` là HTTPS origin tương ứng để Caddy cấp TLS.
 
+## Deploy lên Render
+
+Render Free phù hợp để demo. Service ngủ sau 15 phút không có traffic; API restart sẽ xóa tất cả phòng vì game state chỉ tồn tại trong RAM.
+
+Giữ **Root Directory** trống. Tạo API Web Service trước với Build Command là `npm ci --include=dev && npm run build --workspace=@poker/api` và Start Command là `npm run start --workspace=@poker/api`. Không thêm dấu `-` hay `--` ở cuối lệnh. Đặt `NODE_VERSION=24.12.0`, `NODE_ENV=production`, `PUBLIC_ORIGIN=https://TEN-WEB-SERVICE.onrender.com`, `LOG_LEVEL=warn`, và tùy chọn `SESSION_COOKIE_NAME=poker_session`. `--include=dev` là bắt buộc vì TypeScript và các type definition chỉ cần khi build đang là development dependencies.
+
+Tạo Web Web Service từ cùng repository với Build Command là `npm ci --include=dev && npm run build --workspace=@poker/web` và Start Command là `npm run start --workspace=@poker/web`. Đặt `NODE_VERSION=24.12.0`, `NODE_ENV=production`, `API_INTERNAL_ORIGIN=https://TEN-API-SERVICE.onrender.com`, và `NEXT_PUBLIC_API_ORIGIN=https://TEN-API-SERVICE.onrender.com`. Ứng dụng tự dùng `PORT` do Render cung cấp, nên không đặt `API_PORT` hoặc `WEB_PORT`.
+
 ## State limitation
 
 Phiên bản ứng dụng theo kiến trúc RAM-only. Khi các tính năng game được thêm, restart API hoặc đóng phòng sẽ xóa dữ liệu phiên; không có PostgreSQL, Prisma hoặc migration trong bootstrap.

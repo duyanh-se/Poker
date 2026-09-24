@@ -7,8 +7,11 @@ const standaloneServer = fileURLToPath(
 const child = spawn(process.execPath, [standaloneServer], {
   env: {
     ...process.env,
-    HOSTNAME: process.env.HOSTNAME ?? '0.0.0.0',
-    PORT: process.env.WEB_PORT ?? '3000',
+    // Hosting providers commonly set HOSTNAME to a container identifier. That
+    // identifier cannot be used as a network bind address, so only honor the
+    // application-specific override.
+    HOSTNAME: process.env.WEB_HOSTNAME ?? '0.0.0.0',
+    PORT: process.env.WEB_PORT ?? process.env.PORT ?? '3000',
   },
   stdio: 'inherit',
 });

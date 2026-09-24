@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 const command = process.argv[2];
 const require = createRequire(import.meta.url);
 const nextCli = require.resolve('next/dist/bin/next');
-const port = process.env.WEB_PORT ?? '3000';
+const port = process.env.WEB_PORT ?? process.env.PORT ?? '3000';
 const child = spawn(process.execPath, [nextCli, command, '--port', port], {
   stdio: 'inherit',
 });
