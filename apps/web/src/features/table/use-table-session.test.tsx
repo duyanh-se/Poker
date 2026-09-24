@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { io } from 'socket.io-client';
 
 import { type TableSnapshot, useTableStore } from './store';
 import { useTableSession } from './use-table-session';
@@ -20,7 +21,7 @@ const transport = vi.hoisted(() => {
   socket.timeout.mockReturnValue(socket);
   return { listeners, socket };
 });
-vi.mock('socket.io-client', () => ({ io: () => transport.socket }));
+vi.mock('socket.io-client', () => ({ io: vi.fn(() => transport.socket) }));
 
 const snapshot = (viewerMemberId = 'host', version = 1): TableSnapshot => ({
   gameType: 'poker',
@@ -68,6 +69,16 @@ describe('table session restoration and commands', () => {
     receive('table:snapshot', snapshot('guest', 2));
     expect(result.current.invite).toBeUndefined();
     expect(window.sessionStorage.getItem('poker.room-invite')).toBeNull();
+  });
+
+  it('uses the same-origin Socket.IO proxy so the guest session cookie is sent', async () => {
+    renderHook(useTableSession);
+    await waitFor(() => expect(vi.mocked(io)).toHaveBeenCalled());
+
+    expect(vi.mocked(io)).toHaveBeenCalledWith('/game', {
+      path: '/socket.io',
+      withCredentials: true,
+    });
   });
 
   it('does not confuse missing session with an unreachable backend', async () => {

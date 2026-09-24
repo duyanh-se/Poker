@@ -170,12 +170,10 @@ export function useTableSession() {
     if (!roomCode) return;
     let firstSnapshot = true;
     let active = true;
-    const apiOrigin =
-      process.env.NEXT_PUBLIC_API_ORIGIN ??
-      (process.env.NODE_ENV === 'production'
-        ? window.location.origin
-        : `${window.location.protocol}//${window.location.hostname}:3001`);
-    const socket = io(`${apiOrigin}/game`, { withCredentials: true });
+    // The guest-session cookie belongs to the Web origin. Route Socket.IO
+    // through the same-origin Next.js rewrite so it is included in the
+    // polling and WebSocket upgrade requests.
+    const socket = io('/game', { path: '/socket.io', withCredentials: true });
     socketRef.current = socket;
     socket.on('connect', () => {
       firstSnapshot = true;
