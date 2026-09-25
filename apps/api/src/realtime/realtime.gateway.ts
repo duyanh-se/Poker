@@ -84,6 +84,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         this.hostDisconnectTimers.delete(session.roomCode);
       }
       this.rooms.setConnected(sessionId, true);
+      socket.emit('chat:history', this.rooms.chatHistory(sessionId));
       this.publish(session.roomCode);
     } catch {
       socket.disconnect(true);
@@ -104,6 +105,36 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         this.scheduleHostClosure(snapshot.roomCode, sessionId);
     } catch {
       /* The room or session was already closed. */
+    }
+  }
+
+  @SubscribeMessage('chat:send')
+  chatSend(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { commandId?: unknown; text?: unknown },
+  ) {
+    try {
+      const sessionId = socket.data.sessionId as string;
+      const session = this.rooms.session(sessionId);
+      if (this.activeSockets.get(`${session.roomCode}:${session.memberId}`) !== socket.id)
+        throw new RoomError('NO_SESSION', 'Kết nối không còn quyền điều khiển.');
+      const result = this.rooms.sendChat(sessionId, body?.commandId, body?.text);
+      if (!result.duplicate) {
+        for (const { memberId } of this.rooms.snapshots(result.roomCode)) {
+          const id = this.activeSockets.get(`${result.roomCode}:${memberId}`);
+          const target = id ? this.server.sockets.get(id) : undefined;
+          if (!target) continue;
+          try {
+            this.rooms.session(target.data.sessionId);
+            target.emit('chat:message', result.message);
+          } catch {
+            /* Departed members cannot receive new chat. */
+          }
+        }
+      }
+      return { ok: true, message: result.message };
+    } catch (error) {
+      return { ok: false, code: error instanceof RoomError ? error.code : 'INVALID_CHAT' };
     }
   }
 

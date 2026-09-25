@@ -99,6 +99,15 @@ describe('Poker experience', () => {
   beforeEach(() => {
     useTableStore.getState().clear();
     sessionMock.value = {
+      chat: {
+        messages: [],
+        pending: false,
+        error: '',
+        unread: 0,
+        bind: vi.fn(),
+        markOpen: vi.fn(),
+        send: vi.fn(),
+      },
       table: undefined,
       invite: undefined,
       loading: false,

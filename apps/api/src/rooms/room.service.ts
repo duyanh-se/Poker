@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { LiarsRoomService } from '../liars-deck/liars-room.service';
 import { PokerRoomService, type PokerTableSnapshot } from './poker-room.service';
 import { RoomError } from './room-error';
+import { RoomChat } from './room-chat';
 
 export { RoomError } from './room-error';
 
@@ -20,6 +21,29 @@ type JoinRoom = { roomCode: string; password: string; displayName: string };
 /** Owns the two in-memory engines for the lifetime of this Nest singleton. */
 @Injectable()
 export class RoomService {
+  private readonly chat = new RoomChat();
+
+  chatHistory(sessionId: string) {
+    const snapshot = this.current(sessionId);
+    return this.chat.history(snapshot.roomCode);
+  }
+
+  sendChat(sessionId: string, commandId: unknown, text: unknown) {
+    const snapshot = this.current(sessionId);
+    const member = snapshot.players.find((p) => p.memberId === snapshot.viewerMemberId);
+    if (!member || member.departing)
+      throw new RoomError('NOT_MEMBER', 'Bạn không còn trong phòng.');
+    return {
+      roomCode: snapshot.roomCode,
+      ...this.chat.send(
+        snapshot.roomCode,
+        snapshot.viewerMemberId,
+        String(member.displayName),
+        commandId,
+        text,
+      ),
+    };
+  }
   private readonly poker = new PokerRoomService();
   private readonly liars = new LiarsRoomService();
 
@@ -73,11 +97,15 @@ export class RoomService {
   }
 
   close(sessionId: string, force = false): void {
+    const code = this.session(sessionId).roomCode;
     this.bySession(sessionId).close(sessionId, force);
+    this.chat.close(code);
   }
 
   leave(sessionId: string): void {
+    const before = this.current(sessionId);
     this.bySession(sessionId).leave(sessionId);
+    if (before.hostMemberId === before.viewerMemberId) this.chat.close(before.roomCode);
   }
 
   grant(sessionId: string, targetId: string, amount: number): PokerTableSnapshot {

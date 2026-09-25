@@ -9,6 +9,14 @@
 
 Both game types are RAM-only: restarting the API removes rooms and matches.
 
+## Chat và thao tác bài
+
+Mở **Chat** trong menu bàn để trò chuyện với thành viên hiện tại của phòng ở cả hai game. Chat dùng văn bản thuần, tối đa 300 ký tự/tin và 5 tin trong 10 giây mỗi người. Phòng giữ 50 tin gần nhất trong RAM; người mới vào và người reconnect nhận phần lịch sử này. Đóng phòng hoặc restart API sẽ xóa chat. Chống gửi lặp áp dụng cho 128 lệnh chat được chấp nhận gần nhất trong phòng.
+
+Nút **Xem/Che bài** nằm gần tay bài của bạn; mất focus vẫn tự che bài. Poker có các nút **+1, +2, +5, +10, +20, +50** cộng vào tổng mức cược đang nhập, không gửi cược ngay. Ví dụ tổng 10, bấm +5 thành 15. Vẫn nhập trực tiếp hoặc dùng thanh kéo và xác nhận Cược/Tăng; mức vượt stack bị khóa.
+
+Khi cập nhật tính năng chat, deploy cả API và Web. Không có migration hoặc biến môi trường mới.
+
 ## Prerequisites
 
 - Node.js 24 LTS (`.nvmrc`)
