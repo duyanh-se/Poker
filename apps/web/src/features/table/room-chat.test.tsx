@@ -1,7 +1,7 @@
-import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { act, render, renderHook, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Socket } from 'socket.io-client';
-import { ChatButton, useRoomChat } from './room-chat';
+import { RoomChat, useRoomChat } from './room-chat';
 
 const message = {
   id: 'm1',
@@ -75,10 +75,10 @@ describe('room chat', () => {
       send: vi.fn(),
       markOpen: vi.fn(),
     };
-    render(<ChatButton chat={chat} connected yourTurn />);
-    fireEvent.click(screen.getByRole('button', { name: 'Chat (1)' }));
+    render(<RoomChat chat={chat} connected yourTurn />);
     expect(screen.getByText(message.text)).toBeVisible();
     expect(document.querySelector('.chat-history img')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Quay lại bàn' })).toBeVisible();
+    expect(screen.getByText('Đến lượt bạn')).toBeVisible();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

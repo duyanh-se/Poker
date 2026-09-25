@@ -7,7 +7,7 @@ import { TurnControls } from './liars-controls';
 import { RoomPanel } from './liars-panels';
 import { TableMenu } from '../table/mobile-layout';
 import { Panel } from '../table/panel';
-import { ChatButton, type RoomChatState } from '../table/room-chat';
+import { RoomChat, type RoomChatState } from '../table/room-chat';
 type Props = {
   chat?: RoomChatState;
   table: LiarsTableSnapshot;
@@ -86,13 +86,13 @@ export function LiarsTable({
             {table.hostMemberId === me.memberId ? 'Quản lý' : 'Thông tin'}
           </button>
           <button onClick={() => setResults(true)}>Kết quả</button>
-          <ChatButton
-            chat={chat}
-            connected={connection === 'connected'}
-            yourTurn={table.actingMemberId === me.memberId && !table.transition}
-          />
         </TableMenu>
       </header>
+      <RoomChat
+        chat={chat}
+        connected={connection === 'connected'}
+        yourTurn={table.actingMemberId === me.memberId && !table.transition}
+      />
       <p className="liar-portrait">Xoay ngang điện thoại để nhìn rõ bàn và tay bài.</p>
       {(message || connection !== 'connected') && (
         <div className="liar-notice" role="status">

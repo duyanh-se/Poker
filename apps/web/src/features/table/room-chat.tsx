@@ -1,9 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { Socket } from 'socket.io-client';
 import type { ChatMessage } from '../../../../../packages/contracts/src';
-import { Panel } from './panel';
 
 export function useRoomChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -88,7 +86,7 @@ export function useRoomChat() {
 }
 export type RoomChatState = ReturnType<typeof useRoomChat>;
 
-export function ChatButton({
+export function RoomChat({
   chat,
   connected,
   yourTurn,
@@ -97,79 +95,81 @@ export function ChatButton({
   connected: boolean;
   yourTurn: boolean;
 }) {
-  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
+  const historyRef = useRef<HTMLDivElement>(null);
+  const following = useRef(true);
   const chatRef = useRef(chat);
   useEffect(() => {
     chatRef.current = chat;
   });
-  useEffect(() => () => chatRef.current?.markOpen(false), []);
+  useEffect(() => {
+    chatRef.current?.markOpen(true);
+    return () => chatRef.current?.markOpen(false);
+  }, []);
+  useEffect(() => {
+    if (following.current && historyRef.current)
+      historyRef.current.scrollTop = historyRef.current.scrollHeight;
+  }, [chat?.messages]);
   if (!chat) return null;
-  const close = () => {
-    setOpen(false);
-    chat.markOpen(false);
-  };
   return (
-    <>
-      <button
-        onClick={() => {
-          setOpen(true);
-          chat.markOpen(true);
+    <aside className="room-chat" aria-label="Chat phòng">
+      <header>
+        <strong>Chat phòng</strong>
+        {yourTurn && <span>Đến lượt bạn</span>}
+      </header>
+      <div
+        ref={historyRef}
+        className="chat-history"
+        role="log"
+        aria-label="Tin nhắn phòng"
+        aria-live="polite"
+        onScroll={() => {
+          const el = historyRef.current;
+          if (el) following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 32;
         }}
       >
-        Chat{chat.unread ? ` (${chat.unread})` : ''}
-      </button>
-      {open &&
-        createPortal(
-          <Panel title="Chat phòng" close={close} yourTurn={yourTurn}>
-            <div className="chat-history" role="log" aria-label="Tin nhắn phòng" aria-live="polite">
-              {chat.messages.length === 0 && <p>Chưa có tin nhắn.</p>}
-              {chat.messages.map((m) => (
-                <div className="chat-message" key={m.id}>
-                  <strong>{m.displayName}</strong>{' '}
-                  <time>
-                    {new Date(m.sentAt).toLocaleTimeString('vi-VN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </time>
-                  <p>{m.text}</p>
-                </div>
-              ))}
-            </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (connected && draft.trim() && [...draft.trim()].length <= 300)
-                  chat.send(draft, () => setDraft(''));
-              }}
-            >
-              <label>
-                Tin nhắn
-                <textarea
-                  aria-label="Tin nhắn"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  maxLength={600}
-                  disabled={chat.pending}
-                />
-              </label>
-              <small>{[...draft.trim()].length}/300 ký tự · Lưu tạm 50 tin gần nhất</small>
-              <p role="status">
-                {chat.error ||
-                  (!connected ? 'Mất kết nối. Chưa thể gửi tin.' : chat.pending ? 'Đang gửi…' : '')}
-              </p>
-              <button
-                disabled={
-                  !connected || chat.pending || !draft.trim() || [...draft.trim()].length > 300
-                }
-              >
-                Gửi tin
-              </button>
-            </form>
-          </Panel>,
-          document.body,
-        )}
-    </>
+        {chat.messages.length === 0 && <p>Chưa có tin nhắn.</p>}
+        {chat.messages.map((m) => (
+          <div className="chat-message" key={m.id}>
+            <strong>{m.displayName}</strong>{' '}
+            <time>
+              {new Date(m.sentAt).toLocaleTimeString('vi-VN', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </time>
+            <p>{m.text}</p>
+          </div>
+        ))}
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (connected && draft.trim() && [...draft.trim()].length <= 300)
+            chat.send(draft, () => setDraft(''));
+        }}
+      >
+        <label>
+          Tin nhắn
+          <input
+            aria-label="Tin nhắn"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            maxLength={600}
+            disabled={chat.pending}
+          />
+        </label>
+        <small>{[...draft.trim()].length}/300</small>
+        <p role="status">
+          {chat.error ||
+            (!connected ? 'Mất kết nối. Chưa thể gửi tin.' : chat.pending ? 'Đang gửi…' : '')}
+        </p>
+        <button
+          disabled={!connected || chat.pending || !draft.trim() || [...draft.trim()].length > 300}
+        >
+          Gửi tin
+        </button>
+      </form>
+    </aside>
   );
 }
