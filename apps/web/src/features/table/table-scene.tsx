@@ -11,6 +11,7 @@ import {
   CircleGeometry,
 } from 'three';
 import type { TableSnapshot } from './store';
+import { seatAngle } from './seat-layout';
 import { canRender3DTable } from './table-render-mode';
 
 type Props = { table: TableSnapshot; hidden: boolean; animate: boolean; elapsedMs?: number };
@@ -205,7 +206,8 @@ function MotionPile({
   useFrame((_, delta) => {
     if (!group.current) return;
     progress.current = Math.min(1, progress.current + (delta * 1000) / durationMs);
-    const t = animate ? progress.current : 1;
+    const linear = animate ? progress.current : 1;
+    const t = linear * linear * (3 - 2 * linear);
     group.current.position.set(
       from[0] + (to[0] - from[0]) * t,
       from[1] + (to[1] - from[1]) * t,
@@ -220,12 +222,35 @@ function MotionPile({
   );
 }
 function World({ table, hidden, animate, elapsedMs = 0 }: Props) {
+  const [wagers, setWagers] = useState({
+    snapshot: table,
+    collected: {} as Record<string, number>,
+  });
+  if (wagers.snapshot !== table) {
+    const sameHand = wagers.snapshot.handId === table.handId;
+    setWagers({
+      snapshot: table,
+      collected:
+        sameHand && table.transition?.id === wagers.snapshot.transition?.id
+          ? wagers.collected
+          : sameHand
+            ? Object.fromEntries(
+                wagers.snapshot.players.map((p) => [p.memberId, p.streetContribution ?? 0]),
+              )
+            : {},
+    });
+  }
   const size = useThree((state) => state.size);
   const stretch = Math.max(1.1, size.width / size.height / 2.1);
   const me = table.players.find((p) => p.memberId === table.viewerMemberId);
   const viewer = me?.seat ?? 0;
   const settled =
-    table.phase === 'waiting' || table.phase === 'paused' || table.transition?.kind === 'payout';
+    table.phase === 'waiting' ||
+    table.phase === 'paused' ||
+    table.transition?.kind === 'payout' ||
+    table.transition?.kind === 'fold-win';
+  const collecting = ['street', 'showdown-reveal'].includes(table.transition?.kind ?? '');
+  const awarding = ['payout', 'fold-win'].includes(table.transition?.kind ?? '');
   const publicShowdown = table.players.some(
     (p) => p.memberId !== table.viewerMemberId && p.holeCards?.length,
   );
@@ -272,8 +297,17 @@ function World({ table, hidden, animate, elapsedMs = 0 }: Props) {
               delay={i * 0.04}
             />
           ))}
+        {!awarding && table.players.some((p) => p.contribution > (p.streetContribution ?? 0)) && (
+          <Pile
+            amount={table.players.reduce(
+              (sum, p) => sum + p.contribution - (p.streetContribution ?? 0),
+              0,
+            )}
+            position={[0, 0.08, 0.65]}
+          />
+        )}
         {table.players.map((player) => {
-          const angle = (((player.seat - viewer + 9) % 9) / 9) * Math.PI * 2;
+          const angle = seatAngle(table, player.seat, viewer);
           const x = -Math.sin(angle) * 3.1;
           const z = Math.cos(angle) * 1.65;
           const show = player.memberId === table.viewerMemberId ? !hidden || publicShowdown : true;
@@ -311,25 +345,34 @@ function World({ table, hidden, animate, elapsedMs = 0 }: Props) {
                     }
                   />
                 ))}
-              {player.stack > 0 && (
-                <Pile amount={player.stack} position={[x * 0.97, 0.07, z * 0.97 + 0.3]} />
-              )}
-              {player.contribution > 0 && !settled && (
-                <MotionPile
-                  amount={player.contribution}
-                  from={[x, 0.08, z]}
-                  to={[x * 0.6, 0.08, z * 0.6]}
-                  animate={
-                    animate &&
-                    table.transition?.kind === 'action' &&
-                    ['call', 'bet', 'raise', 'all-in'].includes(table.transition.action ?? '') &&
-                    table.transition?.actorMemberId === player.memberId
-                  }
-                  elapsedMs={elapsedMs}
-                  motionId={table.transition?.id}
-                />
-              )}
-              {settled &&
+              {player.stack > 0 && <Pile amount={player.stack} position={[x + 0.58, 0.07, z]} />}
+              {(collecting
+                ? (wagers.collected[player.memberId] ?? 0)
+                : (player.streetContribution ?? 0)) > 0 &&
+                !settled && (
+                  <MotionPile
+                    amount={
+                      collecting
+                        ? (wagers.collected[player.memberId] ?? 0)
+                        : (player.streetContribution ?? 0)
+                    }
+                    from={collecting ? [x * 0.65, 0.08, z * 0.65] : [x + 0.58, 0.08, z]}
+                    to={collecting ? [0, 0.08, 0.65] : [x * 0.65, 0.08, z * 0.65]}
+                    animate={
+                      animate &&
+                      (collecting ||
+                        (table.transition?.kind === 'action' &&
+                          ['call', 'bet', 'raise', 'all-in'].includes(
+                            table.transition.action ?? '',
+                          ) &&
+                          table.transition?.actorMemberId === player.memberId))
+                    }
+                    elapsedMs={elapsedMs}
+                    motionId={table.transition?.id}
+                    durationMs={collecting ? 600 : 450}
+                  />
+                )}
+              {awarding &&
                 table.pots
                   .flatMap((p) => p.payouts ?? [])
                   .filter((p) => p.memberId === player.memberId)
@@ -337,28 +380,14 @@ function World({ table, hidden, animate, elapsedMs = 0 }: Props) {
                     <MotionPile
                       key={i}
                       amount={p.amount}
-                      from={[0, 0.08, 0.45]}
-                      to={[x * 0.8, 0.08, z * 0.8]}
-                      animate={animate && table.transition?.kind === 'payout'}
+                      from={[0, 0.08, 0.65]}
+                      to={[x + 0.58, 0.08, z]}
+                      animate={animate}
                       elapsedMs={elapsedMs}
                       durationMs={1000}
                       motionId={table.transition?.id}
                     />
                   ))}
-              {[
-                table.buttonSeat === player.seat ? 'D' : null,
-                table.smallBlindSeat === player.seat ? 'SB' : null,
-                table.bigBlindSeat === player.seat ? 'BB' : null,
-              ]
-                .filter(Boolean)
-                .map((label, i) => (
-                  <Chip
-                    key={label}
-                    label={label!}
-                    color={label === 'D' ? '#f4eee0' : label === 'SB' ? '#3c92c8' : '#d7ad58'}
-                    position={[x * 0.8 + i * 0.25, 0.065, z * 0.8]}
-                  />
-                ))}
             </group>
           );
         })}
@@ -426,7 +455,7 @@ export default function TableScene(props: Props) {
         <Canvas
           frameloop={visible ? 'demand' : 'never'}
           dpr={dpr}
-          camera={{ position: [0, 7.7, 5.7], fov: 32 }}
+          camera={{ position: [0, 8.7, 6.5], fov: 34 }}
           fallback={<Fallback />}
           onCreated={({ gl, camera }) => {
             camera.lookAt(0, 0, 0);

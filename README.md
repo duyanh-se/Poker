@@ -76,6 +76,12 @@ Reload giữ phiên nếu API vẫn đang chạy. Mật khẩu lời mời chỉ
 
 Kiểm thử E2E dùng cổng riêng 3100/3101 và không tái sử dụng server đang chạy. Sau kiểm thử, các server do phiên test tạo phải được dừng; không dừng tiến trình phát triển của người dùng.
 
+## Chơi trên điện thoại dọc
+
+Poker dùng bàn 2D dọc, Bài nói dối dùng bàn CSS/SVG; không cần xoay ngang. Menu trên cùng chứa lời mời, luật, kết quả và quản lý. Chạm tên người chơi để xem thông tin; Poker mở bảng nhập khi chọn Cược/Tăng. Bài riêng có nút che/xem, tổ hợp Poker có thể chạm để đọc chi tiết. Màn hình nhỏ cho cuộn dọc bàn, khu thao tác giữ ở dưới và có khoảng đệm vùng an toàn. Xoay thiết bị không tạo lại phiên hoặc reset deadline.
+
+Kiểm thử portrait: `npm run test --workspace=@poker/e2e -- portrait`. Ma trận 320/360/390/430px cùng luồng hai trình duyệt; thử thêm trên Safari iOS/Chrome Android thật trước khi nghiệm thu trải nghiệm thiết bị.
+
 ## Nhịp chơi đồng bộ
 
 Poker và Bài nói dối có nhịp chia bài 1,8 giây, chuyển lượt 0,45 giây và công bố kết quả theo từng bước. Backend quyết định thời gian; đồng hồ 180 giây chỉ bắt đầu khi người chơi được hành động. Trong chuyển tiếp, giao diện hiển thị lý do chờ và khóa thao tác game/quản lý. Chủ phòng vẫn xác nhận ván hoặc vòng tiếp theo.

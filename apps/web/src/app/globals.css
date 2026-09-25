@@ -474,9 +474,10 @@ input[type='range'] {
 }
 .seat-roles {
   position: absolute;
-  left: 50%;
-  top: -17px;
-  transform: translateX(-50%);
+  left: auto;
+  right: 0;
+  top: 100%;
+  transform: none;
   display: flex;
   gap: 3px;
 }
@@ -507,8 +508,8 @@ input[type='range'] {
 .contribution {
   position: absolute;
   bottom: -23px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  transform: none;
   font-size: 11px;
   color: var(--gold);
   white-space: nowrap;
@@ -875,29 +876,6 @@ input[type='range'] {
   .entry-card {
     padding: 24px;
   }
-  .portrait-hint {
-    display: block;
-    text-align: center;
-    font-size: 12px;
-    padding: 10px;
-    background: #4b3921;
-    margin: 0;
-  }
-  .table-stage {
-    min-width: 600px;
-  }
-  .game-shell {
-    overflow-x: auto;
-  }
-  .play-dock {
-    min-width: 600px;
-  }
-  .connection {
-    display: none;
-  }
-  .topbar {
-    min-width: 600px;
-  }
 }
 @media (max-height: 500px) and (orientation: landscape) {
   .topbar {
@@ -1109,7 +1087,7 @@ input[type='range'] {
 @keyframes chip-award {
   from {
     left: 50%;
-    top: 50%;
+    top: var(--pot-y, 62%);
     opacity: 1;
   }
   90% {
@@ -1118,6 +1096,53 @@ input[type='range'] {
   to {
     opacity: 0;
   }
+}
+.pot-chip-pile {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #efd097;
+  font-size: 10px;
+}
+.pot-chip-pile i {
+  width: 17px;
+  height: 12px;
+  border-radius: 50%;
+  background: #b73c48;
+  border: 2px dashed #fff1ce;
+  box-shadow:
+    0 3px #75232d,
+    0 6px #b73c48,
+    0 8px #75232d;
+}
+.chip-collect {
+  position: absolute;
+  pointer-events: none;
+  color: #edc27b;
+  font-size: 23px;
+  text-shadow:
+    2px 3px #9b3244,
+    3px 6px #d6ac55;
+  animation: chip-collect 600ms ease-in-out both;
+  animation-delay: var(--motion-delay);
+}
+@keyframes chip-collect {
+  from {
+    left: var(--chip-x);
+    top: var(--chip-y);
+  }
+  to {
+    left: 50%;
+    top: var(--pot-y, 62%);
+  }
+}
+.table-stage:has(.scene-3d) :is(.chip-flight, .chip-collect) {
+  display: none;
 }
 .game-shell[data-motion='on'][data-transition='street']
   .board-accessible
@@ -1231,4 +1256,65 @@ input[type='range'] {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+/* One readable role marker set; cards and labels occupy separate seat lanes. */
+.game-shell .seat-roles {
+  position: static;
+  transform: none;
+  justify-content: center;
+  margin-top: 4px;
+  min-height: 26px;
+}
+.game-shell .seat-name {
+  font-size: 13px;
+}
+.game-shell .seat small {
+  font-size: 11px;
+}
+.game-shell .seat .public-seat-cards {
+  bottom: calc(100% + 10px);
+}
+.game-shell .seat .contribution {
+  left: 50%;
+  bottom: -22px;
+  transform: translateX(-50%);
+  background: #10191de6;
+  padding: 2px 7px;
+  border-radius: 8px;
+}
+.table-stage:has(.scene-3d) .pot-chip-pile i {
+  display: none;
+}
+.table-stage:has(.scene-3d) .public-seat-cards {
+  display: none;
+}
+.game-shell .table-stage {
+  min-height: 540px;
+}
+@media (max-width: 900px) {
+  .game-shell .table-stage {
+    min-height: 440px;
+  }
+  .game-shell .seat {
+    width: 100px;
+  }
+  .game-shell .seat-name {
+    font-size: 11px;
+  }
+  .game-shell .seat-roles .disc {
+    width: 20px;
+    height: 20px;
+    font-size: 9px;
+  }
+}
+.game-shell .table-caption {
+  top: 39%;
+  gap: 2px;
+}
+.game-shell .table-caption > .eyebrow {
+  display: none;
+}
+.game-shell .pot-chip-pile {
+  font-size: 12px;
+  font-weight: 700;
 }

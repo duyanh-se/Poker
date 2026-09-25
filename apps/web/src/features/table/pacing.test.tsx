@@ -19,6 +19,15 @@ const base: TableSnapshot = {
 };
 
 describe('shared server-paced playback', () => {
+  it('suppresses rotation playback without resetting the server clock', () => {
+    const { result } = renderHook(() => useGamePacing(base, true));
+    act(() => vi.advanceTimersByTime(0));
+    expect(result.current.motion).toBe(true);
+    act(() => window.dispatchEvent(new Event('orientationchange')));
+    expect(result.current.motion).toBe(false);
+    act(() => vi.advanceTimersByTime(100));
+    expect(result.current.elapsedMs).toBe(600);
+  });
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
     vi.useRealTimers();

@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { LiarsTableSnapshot } from '../../../../../packages/contracts/src';
 import { LiarsTable } from './liars-table';
+import { PenaltyShot } from './liars-pieces';
 
 const props = {
   hidden: false,
@@ -14,6 +15,138 @@ const props = {
   restore: vi.fn(),
 };
 describe('upgraded Liars interactions', () => {
+  it.each([
+    ['self', 0, 1],
+    ['top', 0, -1],
+    ['left', -1, 0],
+    ['right', 1, 0],
+    ['upper-left', -1, -1],
+    ['upper-right', 1, -1],
+  ])('points self-penalty outward toward the owner at %s', (seat, dx, dy) => {
+    const { container } = render(
+      <PenaltyShot position={String(seat)} shooterPosition={String(seat)} name="Test" motion />,
+    );
+    const degrees = parseFloat(
+      container
+        .querySelector<HTMLElement>('.liar-table-gun')!
+        .style.getPropertyValue('--aim-angle'),
+    );
+    const radians = (degrees * Math.PI) / 180;
+    if (dx) expect(Math.sign(Math.sin(radians))).toBe(dx);
+    if (dy) expect(Math.sign(-Math.cos(radians))).toBe(dy);
+  });
+  it.each([
+    ['self', 'top', 0],
+    ['top', 'self', 180],
+    ['left', 'right', 90],
+    ['right', 'left', 270],
+  ])('aims the upright barrel from %s toward %s', (shooter, target, angle) => {
+    const { container } = render(
+      <PenaltyShot
+        position={String(target)}
+        shooterPosition={String(shooter)}
+        name="Test"
+        motion
+      />,
+    );
+    const gun = container.querySelector<HTMLElement>('.liar-table-gun');
+    expect(parseFloat(gun?.style.getPropertyValue('--aim-angle') ?? '')).toBeCloseTo(Number(angle));
+    expect(container.querySelector('svg')).toHaveAttribute('viewBox', '0 0 120 240');
+  });
+  it.each([
+    ['challenge', true, 'guest', 'host', 'self', 'top', 'false'],
+    ['challenge', false, 'host', 'host', 'self', 'self', 'true'],
+    ['timeout', undefined, 'guest', undefined, 'top', 'top', 'true'],
+  ] as const)(
+    'maps pickup and target for %s (lie=%s)',
+    (reason, wasLie, loserMemberId, challengerMemberId, shooter, target, selfPenalty) => {
+      const table = snapshot();
+      table.result = { reason, wasLie, loserMemberId, challengerMemberId };
+      table.transition = {
+        id: 'shot',
+        kind: reason === 'timeout' ? 'timeout' : 'life-loss',
+        startedAt: Date.now(),
+        endsAt: Date.now() + 2400,
+      };
+      const { container } = render(<LiarsTable {...props} table={table} />);
+      const gun = container.querySelector('.liar-table-gun');
+      expect(gun).toHaveAttribute('data-shooter', shooter);
+      expect(gun).toHaveAttribute('data-target', target);
+      expect(gun).toHaveAttribute('data-self-penalty', selfPenalty);
+      expect(container.querySelectorAll('.liar-table-gun-art')).toHaveLength(1);
+    },
+  );
+  it('keeps one tabletop gun mounted between idle and penalty states', () => {
+    const table = snapshot();
+    const { container, rerender } = render(<LiarsTable {...props} table={table} />);
+    const gun = container.querySelector('.liar-table-gun-art');
+    expect(screen.getByLabelText('Súng trên bàn')).toBeInTheDocument();
+    expect(container.querySelector('.liar-shot-art')).toBeNull();
+    table.result = { reason: 'challenge', loserMemberId: 'guest', wasLie: true };
+    table.transition = {
+      id: 'slow-loss',
+      kind: 'life-loss',
+      startedAt: Date.now(),
+      endsAt: Date.now() + 2400,
+    };
+    rerender(<LiarsTable {...props} table={table} />);
+    expect(container.querySelector('.liar-table-gun-art')).toBe(gun);
+    expect(container.querySelectorAll('.liar-table-gun')).toHaveLength(1);
+  });
+  it('does not remount the shot when the same penalty snapshot is received again', async () => {
+    const table = snapshot();
+    table.serverTime = Date.now();
+    table.result = { reason: 'timeout', loserMemberId: 'host' };
+    table.players[0].lives = 2;
+    table.transition = {
+      id: 'timeout-shot',
+      kind: 'timeout',
+      startedAt: table.serverTime,
+      endsAt: table.serverTime + 1200,
+    };
+    const { container, rerender } = render(<LiarsTable {...props} table={table} animate />);
+    await waitFor(() =>
+      expect(container.querySelector('.liar-penalty-self .liar-shot-art')).not.toBeNull(),
+    );
+    const shot = container.querySelector('.liar-shot-art');
+    rerender(<LiarsTable {...props} table={{ ...table, version: 2 }} animate />);
+    expect(container.querySelector('.liar-shot-art')).toBe(shot);
+    expect(container.querySelectorAll('.liar-minus-life')).toHaveLength(1);
+  });
+  it('flips the same three tabletop leaves and removes private faces when concealed', () => {
+    const table = snapshot();
+    table.lastPlay = { memberId: 'guest', count: 3 };
+    const { container, rerender } = render(<LiarsTable {...props} table={table} />);
+    const leaves = Array.from(container.querySelectorAll('.liar-table-leaf'));
+    expect(leaves).toHaveLength(3);
+    table.challengeReveal = {
+      cards: ['A', 'K', 'Q'].map((rank, i) => ({ id: `public-${i}`, rank: rank as 'A' })),
+    };
+    rerender(<LiarsTable {...props} table={table} hidden />);
+    expect(Array.from(container.querySelectorAll('.liar-table-leaf'))).toEqual(leaves);
+    expect(container.querySelector('.liar-viewer-seat [aria-label="Lá A"]')).toBeNull();
+    expect(container.querySelector('.liar-opponent-hand [aria-label="Lá A"]')).toBeNull();
+    expect(container.querySelectorAll('.liar-physical-pile [data-concealed="false"]')).toHaveLength(
+      3,
+    );
+  });
+
+  it('targets a single-life penalty at its loser and suppresses gunfire on restoration', () => {
+    const table = snapshot();
+    table.result = { reason: 'challenge', loserMemberId: 'guest', wasLie: true };
+    table.transition = {
+      id: 'loss',
+      kind: 'life-loss',
+      startedAt: Date.now(),
+      endsAt: Date.now() + 600,
+    };
+    const { container, rerender } = render(<LiarsTable {...props} table={table} animate={false} />);
+    expect(container.querySelectorAll('.liar-penalty-top')).toHaveLength(1);
+    expect(container.querySelector('.liar-shot-art')).toBeNull();
+    table.result = { reason: 'forfeit', loserMemberId: 'guest' };
+    rerender(<LiarsTable {...props} table={table} />);
+    expect(container.querySelector('.liar-penalty')).toBeNull();
+  });
   it('locks a stale legal action and host start during a server transition', () => {
     const table = snapshot();
     table.transition = { id: 'deal-1', kind: 'deal', startedAt: 1000, endsAt: 2800 };

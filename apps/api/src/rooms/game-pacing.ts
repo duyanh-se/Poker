@@ -10,10 +10,11 @@ export const PACING = {
   showdownVerdict: 800,
   payout: 1000,
   foldWin: 1200,
-  challenge: 450,
-  challengeReveal: 750,
-  challengeVerdict: 600,
-  lifeLoss: 600,
+  challenge: 900,
+  challengeReveal: 1800,
+  challengeVerdict: 1800,
+  lifeLoss: 2400,
+  timeoutPenalty: 2400,
   penalty: 1200,
 } as const;
 

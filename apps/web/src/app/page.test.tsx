@@ -55,6 +55,47 @@ beforeAll(() => {
 });
 
 describe('Poker experience', () => {
+  it('uses a portrait wager sheet and locks it when disconnected', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query.includes('portrait'),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    try {
+      sessionMock.value.table = {
+        ...table(),
+        phase: 'running',
+        handId: 'h',
+        turnId: 't',
+        legalActions: {
+          actions: ['fold', 'check', 'bet', 'all-in'],
+          callAmount: 0,
+          minRaiseTo: 10,
+          maxRaiseTo: 100,
+        },
+      };
+      const { rerender } = render(<HomePage />);
+      expect(screen.queryByLabelText('Mức cược')).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Cược 10' }));
+      expect(screen.getByRole('dialog', { name: 'Cược / Tăng' })).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Mức cược'), { target: { value: '20' } });
+      sessionMock.value.connection = 'offline';
+      rerender(<HomePage />);
+      expect(screen.getByRole('button', { name: 'Xác nhận cược' })).toBeDisabled();
+      sessionMock.value.connection = 'connected';
+      sessionMock.value.table = { ...table(), phase: 'running', handId: 'h', turnId: 'next' };
+      rerender(<HomePage />);
+      expect(screen.getByRole('dialog', { name: 'Cược / Tăng' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Xác nhận cược' })).toBeDisabled();
+      expect(screen.getByText('Lượt đã thay đổi. Đóng bảng để trở lại bàn.')).toBeInTheDocument();
+      expect(sessionMock.value.send).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   beforeEach(() => {
     useTableStore.getState().clear();
     sessionMock.value = {
