@@ -26,6 +26,17 @@ for (const game of ['poker', 'liars-deck']) {
       await guest.getByRole('button', { name: 'Vào bàn →' }).click();
       await expect(page.getByText('● Đã kết nối', { exact: true })).toBeVisible();
       await expect(guest.getByText('● Đã kết nối', { exact: true })).toBeVisible();
+      await menu(page, 'Chat');
+      await page.getByLabel('Tin nhắn', { exact: true }).fill('<b>Xin chào</b>');
+      await page.getByRole('button', { name: 'Gửi tin', exact: true }).click();
+      await expect(page.getByText('<b>Xin chào</b>', { exact: true })).toBeVisible();
+      await page.keyboard.press('Escape');
+      await guest.getByRole('button', { name: 'Menu', exact: true }).click();
+      await guest.getByRole('button', { name: /^Chat/ }).click();
+      await expect(guest.getByText('<b>Xin chào</b>', { exact: true })).toBeVisible();
+      await expect(guest.getByRole('dialog', { name: 'Chat phòng' })).toHaveCSS('opacity', '1');
+      await guest.screenshot({ path: info.outputPath('chat.png'), fullPage: true });
+      await guest.keyboard.press('Escape');
       if (game === 'poker') {
         await menu(page, 'Quản lý');
         await page.getByRole('button', { name: 'Cấp chip cho tôi', exact: true }).click();
@@ -35,6 +46,9 @@ for (const game of ['poker', 'liars-deck']) {
         await page.keyboard.press('Escape');
       }
       await page.reload();
+      await menu(page, 'Chat');
+      await expect(page.getByText('<b>Xin chào</b>', { exact: true })).toBeVisible();
+      await page.keyboard.press('Escape');
       await expect(
         page.getByRole('button', {
           name: game === 'poker' ? 'Bắt đầu ván' : 'Bắt đầu trận',
@@ -61,11 +75,25 @@ for (const game of ['poker', 'liars-deck']) {
         : guest;
       await actor.screenshot({ path: info.outputPath('turn.png'), fullPage: true });
       if (game === 'poker') {
+        const toggle = await actor
+          .getByRole('button', { name: 'Xem bài riêng', exact: true })
+          .boundingBox();
+        const handName = await actor.locator('.private-hand-name').boundingBox();
+        expect(toggle).not.toBeNull();
+        expect(handName).not.toBeNull();
+        expect(toggle!.x + toggle!.width).toBeLessThanOrEqual(handName!.x + 1);
         await actor
           .locator('.action-buttons')
           .getByRole('button', { name: /^(Cược|Tăng lên)/ })
           .click();
         await expect(actor.getByRole('dialog', { name: 'Cược / Tăng' })).toBeVisible();
+        const initial = Number(await actor.getByLabel('Mức cược', { exact: true }).inputValue());
+        await actor.getByRole('button', { name: '+5', exact: true }).click();
+        await actor.getByRole('button', { name: '+20', exact: true }).click();
+        await expect(actor.getByLabel('Mức cược', { exact: true })).toHaveValue(
+          String(initial + 25),
+        );
+        await actor.screenshot({ path: info.outputPath('wager.png'), fullPage: true });
         await actor.getByRole('button', { name: 'Xác nhận cược', exact: true }).click();
         const opponent = actor === page ? guest : page;
         await expect(opponent.getByRole('button', { name: 'Bỏ bài', exact: true })).toBeEnabled();

@@ -11,6 +11,7 @@ function socket(id: string, sessionId: string): Socket {
     data: { sessionId, memberKey: '' },
     handshake: { headers: { cookie: `poker_session=${sessionId}` } },
     join: jest.fn(),
+    emit: jest.fn(),
     disconnect: jest.fn(),
   } as unknown as Socket;
 }
@@ -34,6 +35,42 @@ function setupGateway() {
 
 describe('RealtimeGateway connection lifecycle', () => {
   afterEach(() => jest.useRealTimers());
+
+  it('scopes chat to current room sockets and rejects revoked or replaced members', () => {
+    const { rooms, host, guest, gateway, server } = setupGateway();
+    const a = socket('a', host.sessionId);
+    const b = socket('b', guest.sessionId);
+    server.sockets.set(a.id, a);
+    server.sockets.set(b.id, b);
+    gateway.handleConnection(a);
+    gateway.handleConnection(b);
+    const other = rooms.create({ displayName: 'Other', smallBlind: 5, bigBlind: 10, ante: 0 });
+    const c = socket('c', other.sessionId);
+    server.sockets.set(c.id, c);
+    gateway.handleConnection(c);
+    expect(gateway.chatSend(a, { commandId: 'chat1', text: 'hello' }).ok).toBe(true);
+    expect(b.emit).toHaveBeenCalledWith(
+      'chat:message',
+      expect.objectContaining({ text: 'hello', memberId: host.snapshot.viewerMemberId }),
+    );
+    expect(c.emit).not.toHaveBeenCalledWith('chat:message', expect.anything());
+    const replacement = socket('replacement', host.sessionId);
+    server.sockets.set(replacement.id, replacement);
+    gateway.handleConnection(replacement);
+    expect(replacement.emit).toHaveBeenCalledWith(
+      'chat:history',
+      expect.arrayContaining([expect.objectContaining({ text: 'hello' })]),
+    );
+    expect(gateway.chatSend(a, { commandId: 'chat2', text: 'old socket' }).ok).toBe(false);
+    rooms.kick(host.sessionId, guest.snapshot.viewerMemberId);
+    expect(gateway.chatSend(b, { commandId: 'chat3', text: 'kicked' }).ok).toBe(false);
+    const oldCalls = (b.emit as jest.Mock).mock.calls.length;
+    gateway.chatSend(replacement, { commandId: 'chat4', text: 'after kick' });
+    expect((b.emit as jest.Mock).mock.calls).toHaveLength(oldCalls);
+    gateway.close(replacement, { commandId: 'close' });
+    expect(gateway.chatSend(replacement, { commandId: 'chat5', text: 'closed' }).ok).toBe(false);
+    gateway.onModuleDestroy();
+  });
 
   it('rearms an early transition callback instead of leaving the table waiting forever', () => {
     jest.useFakeTimers();

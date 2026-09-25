@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
 import { type RoomSnapshot, useTableStore } from './store';
+import { useRoomChat } from './room-chat';
 
 export type RoomInvite = { roomCode: string; password: string };
 type RoomResult = { roomCode?: string; password?: string; snapshot?: RoomSnapshot };
@@ -88,6 +89,11 @@ function removeInvite(): void {
 }
 
 export function useTableSession() {
+  const chat = useRoomChat();
+  const chatRef = useRef(chat);
+  useEffect(() => {
+    chatRef.current = chat;
+  });
   const table = useTableStore((state) => state.table);
   const message = useTableStore((state) => state.requestMessage);
   const [invite, setInvite] = useState<RoomInvite>();
@@ -174,6 +180,7 @@ export function useTableSession() {
     // through the same-origin Next.js rewrite so it is included in the
     // polling and WebSocket upgrade requests.
     const socket = io('/game', { path: '/socket.io', withCredentials: true });
+    const unbindChat = chatRef.current.bind(socket);
     socketRef.current = socket;
     socket.on('connect', () => {
       firstSnapshot = true;
@@ -230,6 +237,7 @@ export function useTableSession() {
     });
     return () => {
       active = false;
+      unbindChat();
       socket.removeAllListeners();
       socket.close();
       if (socketRef.current === socket) socketRef.current = null;
@@ -355,6 +363,7 @@ export function useTableSession() {
       ? invite
       : undefined;
   return {
+    chat,
     table,
     invite: visibleInvite,
     loading,

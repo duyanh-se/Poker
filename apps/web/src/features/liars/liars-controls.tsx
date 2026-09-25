@@ -69,12 +69,16 @@ export function TurnControls({
               ? `Đã chọn ${selected.length}/3 lá`
               : `${me.cardCount} lá trên tay`}
           </span>
-          <button onClick={() => setHidden(!hidden)}>{hidden ? 'Xem bài' : 'Che bài'}</button>
           {mine && table.legalActions?.canPlay && (
             <button disabled={locked || !selected.length} onClick={() => setSelected([])}>
               Bỏ chọn
             </button>
           )}
+        </div>
+        <div className="private-view-toolbar">
+          <button aria-pressed={!hidden} onClick={() => setHidden(!hidden)}>
+            {hidden ? 'Xem bài' : 'Che bài'}
+          </button>
         </div>
         <div className="liar-fan">
           {(me.cards ?? []).map((card) => (

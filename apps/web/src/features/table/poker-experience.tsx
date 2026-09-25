@@ -7,6 +7,8 @@ import { ActionEffect } from './action-effect';
 import { Entry } from './entry';
 import { LiarsTable } from '../liars/liars-table';
 import { Panel } from './panel';
+import { ChatButton } from './room-chat';
+import { WagerIncrements } from './wager-increments';
 import { TableMenu, usePortraitTable } from './mobile-layout';
 import { evaluateBestHand, describeCombination } from './public-hand';
 import { useTableSession } from './use-table-session';
@@ -122,6 +124,7 @@ export function PokerExperience() {
         message={message}
         restore={session.restore}
         invite={invite}
+        chat={session.chat}
       />
     );
   return (
@@ -167,6 +170,12 @@ export function PokerExperience() {
               <button onClick={() => setPanel('help')}>Luật chơi</button>
               <button onClick={() => setPanel('admin')}>{host ? 'Quản lý' : 'Thông tin'}</button>
               <button onClick={() => setPanel('results')}>Kết quả</button>
+              <ChatButton
+                key={table.roomCode}
+                chat={session.chat}
+                connected={connection === 'connected'}
+                yourTurn={Boolean(table.legalActions) && !table.transition}
+              />
             </TableMenu>
           </header>
           <p className="portrait-hint">Xoay ngang thiết bị để quan sát bàn chơi thoải mái hơn.</p>
@@ -376,7 +385,7 @@ export function PokerExperience() {
           </section>
           <footer className="play-dock">
             <section className="my-hand" data-private-visible={!hidden && !!me?.holeCards?.length}>
-              <div>
+              <div className="private-view-toolbar">
                 <span className="eyebrow">BÀI CỦA BẠN</span>
                 <button
                   className="subtle"
@@ -848,6 +857,7 @@ function Actions({
                 step={1}
                 value={wager}
                 onChange={(e) => setWager(Number(e.target.value))}
+                disabled={locked}
               />
             </label>
             <input
@@ -858,11 +868,13 @@ function Actions({
               step={1}
               value={Math.max(min, Math.min(max, wager))}
               onChange={(e) => setWager(Number(e.target.value))}
+              disabled={locked}
             />
             <small>
               {number(min)} – {number(max)} chip
             </small>
           </div>
+          <WagerIncrements amount={wager} max={max} locked={locked} change={setWager} />
         </>
       )}
       <div className="action-buttons">
@@ -945,6 +957,7 @@ function WagerSheet({
             ? 'Thao tác tạm khóa. Đang chờ kết nối hoặc xác nhận.'
             : `Tăng lên tổng ${number(amount)} chip`}
       </p>
+      <WagerIncrements amount={amount} max={max} locked={locked || stale} change={setAmount} />
       <button
         disabled={stale || locked || !valid}
         onClick={() => {

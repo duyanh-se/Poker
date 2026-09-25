@@ -1,4 +1,12 @@
 export type PlayerActionKind = 'fold' | 'check' | 'call' | 'bet' | 'raise' | 'all-in';
+export interface ChatMessage {
+  id: string;
+  commandId: string;
+  memberId: string;
+  displayName: string;
+  text: string;
+  sentAt: number;
+}
 export type TablePhase = 'waiting' | 'running' | 'pause-pending' | 'paused' | 'closed';
 export type Street = 'preflop' | 'flop' | 'turn' | 'river';
 
