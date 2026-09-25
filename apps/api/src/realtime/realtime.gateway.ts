@@ -304,6 +304,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         setTimeout(
           () => {
             this.transitionTimers.delete(key);
+            // Timer delivery and wall-clock deadlines can differ by a few ms.
+            // Preserve the deadline guard without dropping the only continuation.
+            if (Date.now() < transition.endsAt) {
+              this.scheduleTimeout(snapshot);
+              return;
+            }
             const next = this.rooms.advanceTransition(key, transition.id);
             if (next) this.publish(key);
           },
@@ -318,6 +324,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       key,
       setTimeout(
         () => {
+          this.turnTimers.delete(key);
+          if (Date.now() < snapshot.deadlineAt!) {
+            this.scheduleTimeout(snapshot);
+            return;
+          }
           const next = this.rooms.timeout(snapshot.roomCode, actionId, snapshot.turnId as string);
           if (next) {
             this.publish(next.roomCode);
