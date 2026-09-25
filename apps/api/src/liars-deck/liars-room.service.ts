@@ -295,7 +295,7 @@ export class LiarsRoomService {
     beginTransition(
       room,
       'timeout',
-      PACING.penalty,
+      PACING.timeoutPenalty,
       () => {
         room.phase = 'waiting';
       },

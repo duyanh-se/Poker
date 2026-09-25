@@ -42,6 +42,7 @@ export function RoomPanel({
     (confirm.event !== 'room:transfer-host' || target?.connected);
   return (
     <Panel
+      yourTurn={table.actingMemberId === table.viewerMemberId && !locked}
       title={
         kind === 'invite'
           ? 'Lời mời riêng'

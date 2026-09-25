@@ -51,6 +51,13 @@ export function useGamePacing(table: RoomSnapshot | undefined, animate: boolean)
       playback.current.suppressed = true;
       tick();
     };
+    let layoutWidth = window.innerWidth;
+    const resize = () => {
+      if (window.innerWidth !== layoutWidth) {
+        layoutWidth = window.innerWidth;
+        visibility();
+      }
+    };
     const reduced = () => {
       if (media?.matches) playback.current.suppressed = true;
       tick();
@@ -58,11 +65,15 @@ export function useGamePacing(table: RoomSnapshot | undefined, animate: boolean)
     const initial = window.setTimeout(tick, 0);
     const timer = window.setInterval(tick, 100);
     document.addEventListener('visibilitychange', visibility);
+    window.addEventListener('orientationchange', visibility);
+    window.addEventListener('resize', resize);
     media?.addEventListener('change', reduced);
     return () => {
       clearTimeout(initial);
       clearInterval(timer);
       document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('orientationchange', visibility);
+      window.removeEventListener('resize', resize);
       media?.removeEventListener('change', reduced);
     };
   }, [transition, table?.serverTime, animate]);

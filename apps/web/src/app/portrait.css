@@ -1,0 +1,658 @@
+/* Shared shell controls; portrait rules are isolated from desktop/landscape. */
+.portrait-menu-toggle,
+.portrait-result-button {
+  display: none;
+}
+.table-menu {
+  margin-left: auto;
+}
+.seat-details-button {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.panel-turn-reminder {
+  padding: 8px 16px;
+  background: #584322;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.liar-player-details {
+  position: relative;
+}
+.liar-player-details summary {
+  cursor: pointer;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.liar-player-details[open] p {
+  position: absolute;
+  z-index: 15;
+  top: 100%;
+  width: 180px;
+  max-width: 65vw;
+  padding: 10px;
+  background: #211a19;
+  border: 1px solid #b08b5d;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) and (orientation: portrait) {
+  html,
+  body {
+    min-width: 0;
+  }
+  button,
+  input,
+  select,
+  summary {
+    touch-action: manipulation;
+  }
+  input,
+  select {
+    font-size: 16px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .game-shell,
+  .liar-shell {
+    min-height: 100dvh;
+    width: 100%;
+    overflow-x: clip;
+    display: block;
+    padding-bottom: calc(240px + env(safe-area-inset-bottom));
+  }
+  .portrait-hint,
+  .liar-shell .liar-portrait {
+    display: none;
+  }
+  .topbar,
+  .liar-shell .liar-topbar {
+    min-width: 0;
+    min-height: 76px;
+    height: auto;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 3px 8px;
+    padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+    position: relative;
+    z-index: 20;
+  }
+  .wordmark,
+  .liar-shell .liar-brand {
+    display: flex;
+    font-size: 12px;
+    grid-column: 1;
+  }
+  .wordmark > span,
+  .liar-shell .liar-brand > span,
+  .liar-shell .liar-brand small {
+    display: none;
+  }
+  .liar-shell .liar-brand strong {
+    font-size: 14px;
+    letter-spacing: 1px;
+  }
+  .room-meta,
+  .liar-shell .liar-room {
+    grid-column: 1;
+    font-size: 12px;
+  }
+  .room-meta small {
+    display: inline;
+    margin-left: 6px;
+    font-size: 12px;
+  }
+  .connection,
+  .liar-shell .liar-connection {
+    display: block;
+    grid-column: 1;
+    font-size: 12px;
+  }
+  .table-menu {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    align-self: center;
+  }
+  .portrait-menu-toggle {
+    display: block;
+  }
+  .table-menu nav,
+  .liar-shell .table-menu nav {
+    display: none;
+  }
+  .table-menu nav[data-open='true'] {
+    display: grid;
+    position: absolute;
+    right: 12px;
+    top: 100%;
+    width: min(230px, 90vw);
+    padding: 10px;
+    gap: 8px;
+    background: #172326;
+    border: 1px solid #8f7850;
+    border-radius: 12px;
+    box-shadow: 0 12px 25px #0009;
+  }
+  .table-menu nav button {
+    width: 100%;
+    font-size: 14px;
+  }
+  .entry-layout {
+    display: block;
+    padding: calc(20px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+  }
+  .entry-intro {
+    margin-bottom: 18px;
+  }
+  .entry-intro h1 {
+    font-size: 32px;
+    margin: 12px 0;
+  }
+  .entry-intro p {
+    font-size: 14px;
+  }
+  .entry-art {
+    display: none;
+  }
+  .entry-card {
+    padding: 18px;
+    width: 100%;
+    min-width: 0;
+  }
+  .entry-card h2 {
+    font-size: 22px;
+  }
+  .entry-card form {
+    display: flex;
+    flex-direction: column;
+  }
+  .entry-card label {
+    font-size: 14px;
+  }
+  .entry-card .field-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .entry-card .game-choice {
+    order: -1;
+  }
+  .notice,
+  .liar-shell .liar-notice {
+    font-size: 14px;
+    overflow-wrap: anywhere;
+    flex-wrap: wrap;
+  }
+  .panel {
+    position: fixed;
+    inset: auto 0 0;
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 90dvh;
+    border-radius: 18px 18px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    overflow: hidden;
+  }
+  .panel[open] {
+    display: flex;
+    flex-direction: column;
+  }
+  .panel header {
+    flex: none;
+    padding: 12px 16px;
+  }
+  .panel header h2 {
+    font-size: 18px;
+  }
+  .panel-content {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 16px;
+    min-height: 0;
+    font-size: 14px;
+  }
+  .panel-content p {
+    overflow-wrap: anywhere;
+  }
+  .panel .button-row,
+  .panel .member-admin {
+    flex-wrap: wrap;
+  }
+  .panel-turn-reminder {
+    flex: none;
+    font-size: 14px;
+  }
+
+  /* Poker: vertical oval, compact seat lanes, independent center board. */
+  .game-shell .table-stage {
+    --pot-y: 58%;
+    min-width: 0;
+    width: 100%;
+    height: 800px;
+    min-height: 800px;
+    max-height: none;
+    overflow: visible;
+  }
+  .table-fallback {
+    inset: 0;
+  }
+  .felt-fallback {
+    inset: 4% 5%;
+    transform: none;
+    border-radius: 48%;
+  }
+  .fallback-label {
+    display: none;
+  }
+  .game-shell .seat {
+    width: 84px;
+    padding: 3px;
+    border-radius: 9px;
+  }
+  .game-shell .seat-name {
+    font-size: 12px;
+    min-height: 44px;
+    line-height: 1.2;
+  }
+  .game-shell .seat .stack {
+    font-size: 14px;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .game-shell .seat small {
+    font-size: 12px;
+    line-height: 1.2;
+    display: block;
+  }
+  .game-shell .seat-roles {
+    min-height: 0;
+    margin: 0;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    gap: 2px;
+  }
+  .game-shell .seat-roles .disc {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+  }
+  .game-shell .seat .contribution {
+    bottom: auto;
+    top: calc(100% + 24px);
+    font-size: 12px;
+    max-width: 95px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .game-shell .seat .public-seat-cards {
+    bottom: calc(100% + 3px);
+  }
+  .game-shell .seat .public-seat-cards .card {
+    width: 22px;
+    height: 30px;
+    font-size: 10px;
+    padding: 1px;
+  }
+  .game-shell .seat .public-seat-cards .card b {
+    font-size: 12px;
+  }
+  .game-shell .seat.self .private-table-cards {
+    display: none;
+  }
+  .game-shell .table-caption {
+    top: 38%;
+    width: 45%;
+    font-size: 12px;
+  }
+  .game-shell .table-caption b {
+    font-size: 16px;
+  }
+  .game-shell .board-accessible,
+  .game-shell .table-stage:has(.table-fallback) .board-accessible {
+    top: 47%;
+    left: 50%;
+  }
+  .board-accessible .cards {
+    gap: 2px;
+  }
+  .board-accessible .card {
+    width: 29px;
+    height: 42px;
+    font-size: 13px;
+    padding: 2px;
+  }
+  .board-accessible .card b {
+    font-size: 16px;
+  }
+  .game-shell .pot-chip-pile {
+    top: 58%;
+    left: 50%;
+  }
+  .play-dock {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 25;
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    background: #0d161bf5;
+    max-height: 48dvh;
+    overflow-y: auto;
+  }
+  .my-hand {
+    border: 0;
+    padding: 0;
+    grid-template-columns: auto 1fr;
+    gap: 4px 8px;
+  }
+  .my-hand > div:first-child {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: space-between;
+  }
+  .my-hand > .cards {
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+  .my-hand > .cards .card {
+    width: 34px;
+    height: 48px;
+    font-size: 14px;
+  }
+  .my-hand > .cards .card b {
+    font-size: 18px;
+  }
+  .my-hand > .private-hand-name {
+    grid-column: 2;
+    font-size: 14px;
+    padding: 3px 6px;
+    min-height: 44px;
+    text-align: left;
+  }
+  .my-hand .hand-detail {
+    display: none;
+  }
+  .my-hand .eyebrow {
+    font-size: 12px;
+  }
+  .my-hand .subtle {
+    font-size: 12px;
+    padding: 4px;
+  }
+  .turn-panel h2 {
+    font-size: 14px;
+    margin: 4px 0;
+  }
+  .turn-panel .eyebrow {
+    font-size: 12px;
+  }
+  .action-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .action-buttons button {
+    padding: 6px 4px;
+    font-size: 14px;
+    min-height: 44px;
+  }
+  .action-buttons .all-in {
+    grid-column: 1 / -1;
+  }
+  .wager-control {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .wager-control input {
+    width: 100%;
+    min-height: 44px;
+  }
+  .rank-row {
+    flex-wrap: wrap;
+  }
+
+  /* Liars: physical hands remain in the table, dock is always reachable. */
+  .liar-shell {
+    padding-bottom: calc(185px + env(safe-area-inset-bottom));
+  }
+  .liar-shell .liar-stage,
+  .liar-shell .liar-stage:has(.liar-result) {
+    height: auto;
+    min-height: 800px;
+    padding: 590px 0 0;
+    overflow: visible;
+  }
+  .liar-shell .liar-wood {
+    inset: 100px 2% 0;
+    transform: none;
+    clip-path: none;
+    border-radius: 44% 44% 12% 12%;
+  }
+  .liar-shell .liar-seat {
+    width: 110px;
+    padding: 7px;
+    gap: 4px;
+    min-height: 76px;
+  }
+  .liar-shell .liar-avatar {
+    display: none;
+  }
+  .liar-shell .liar-seat-info {
+    width: 100%;
+    min-width: 0;
+  }
+  .liar-shell .liar-seat small {
+    font-size: 12px;
+  }
+  .liar-shell .liar-player-details summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+  }
+  .liar-shell .liar-seat-top {
+    top: 12px;
+    left: 50%;
+  }
+  .liar-shell .liar-seat-upper-left {
+    top: 14px;
+    left: 5%;
+  }
+  .liar-shell .liar-seat-upper-right {
+    top: 14px;
+    right: 5%;
+  }
+  .liar-shell .liar-seat-left {
+    top: 194px;
+    left: 3%;
+  }
+  .liar-shell .liar-seat-right {
+    top: 194px;
+    right: 3%;
+  }
+  .liar-shell .liar-opponent-hand {
+    width: 106px;
+  }
+  .liar-shell .liar-held-backs .liar-card {
+    width: 28px;
+    height: 40px;
+  }
+  .liar-shell .liar-center,
+  .liar-shell .liar-center:has(.liar-result) {
+    top: 365px;
+    width: 92%;
+    left: 50%;
+  }
+  .liar-shell .liar-target strong {
+    font-size: 19px;
+  }
+  .liar-shell .liar-target span,
+  .liar-shell .liar-target small {
+    font-size: 12px;
+  }
+  .liar-shell .liar-physical-pile {
+    min-height: 72px;
+    padding: 8px 0;
+    gap: 8px;
+  }
+  .liar-shell .liar-table-leaf .liar-card {
+    width: 42px;
+    height: 59px;
+  }
+  .liar-shell .liar-table-leaf small {
+    font-size: 12px;
+  }
+  .liar-shell .liar-center .liar-result p {
+    display: none;
+  }
+  .liar-shell .liar-center .liar-result h2 {
+    font-size: 14px;
+  }
+  .liar-shell .liar-center .liar-result small {
+    font-size: 12px;
+  }
+  .portrait-result-button {
+    display: inline-block;
+  }
+  .liar-shell .liar-table-claim {
+    font-size: 14px;
+  }
+  .liar-shell .liar-dock {
+    display: block;
+  }
+  .liar-shell .liar-viewer-seat {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    margin: 36px auto 0;
+    width: calc(100% - 20px);
+    padding: 8px;
+    min-height: 0;
+    border: 0;
+    background: #20191c66;
+  }
+  .liar-shell .liar-hand-heading {
+    font-size: 14px;
+    gap: 6px;
+  }
+  .liar-shell .liar-hand-heading strong {
+    max-width: 65%;
+    overflow-wrap: anywhere;
+  }
+  .liar-shell .liar-hand-toolbar {
+    font-size: 12px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .liar-shell .liar-hand-toolbar button {
+    padding: 4px 8px;
+  }
+  .liar-shell .liar-fan {
+    height: 100px;
+    min-height: 100px;
+    padding: 15px 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  .liar-shell .liar-fan .liar-card {
+    width: 46px;
+    min-width: 46px;
+    height: 65px;
+    min-height: 65px;
+    margin: 0;
+    padding: 0;
+    transform: none;
+    flex: 0 0 46px;
+  }
+  .liar-shell .liar-fan .liar-card.selected {
+    transform: translateY(-10px);
+  }
+  .liar-shell .liar-holding-hands {
+    pointer-events: none;
+  }
+  .liar-shell .liar-controls {
+    position: fixed;
+    z-index: 25;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    min-height: 0;
+    max-height: 35dvh;
+    overflow-y: auto;
+  }
+  .liar-shell .liar-controls h2 {
+    font-size: 14px;
+    margin: 4px 0;
+  }
+  .liar-shell .liar-controls p {
+    font-size: 12px;
+  }
+  .liar-shell .liar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .liar-shell .liar-actions > * {
+    flex: 1 1 130px;
+  }
+  .liar-shell .liar-actions button {
+    width: 100%;
+    padding: 6px;
+    font-size: 14px;
+  }
+  .liar-shell .liar-table-gun {
+    --rest-x: 50%;
+    --rest-y: 33%;
+    left: var(--rest-x);
+    top: var(--rest-y);
+  }
+  .liar-shell .liar-minus-life {
+    font-size: 18px;
+    padding: 4px 8px;
+  }
+  .liar-shell .liar-table-mark {
+    display: none;
+  }
+}
+
+@media (max-width: 340px) and (orientation: portrait) {
+  .board-accessible .card {
+    width: 24px;
+    height: 36px;
+    font-size: 12px;
+  }
+  .board-accessible .card b {
+    font-size: 14px;
+  }
+}

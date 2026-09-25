@@ -2,10 +2,12 @@
 import dynamic from 'next/dynamic';
 import { useState, type CSSProperties } from 'react';
 import { useGamePacing, TransitionStatus } from './pacing';
+import { seatPosition } from './seat-layout';
 import { ActionEffect } from './action-effect';
 import { Entry } from './entry';
 import { LiarsTable } from '../liars/liars-table';
 import { Panel } from './panel';
+import { TableMenu, usePortraitTable } from './mobile-layout';
 import { evaluateBestHand, describeCombination } from './public-hand';
 import { useTableSession } from './use-table-session';
 import { useTableStore, type PlayerAction, type TableSnapshot } from './store';
@@ -13,6 +15,13 @@ import { useTableStore, type PlayerAction, type TableSnapshot } from './store';
 const Scene = dynamic(() => import('./table-scene'), { ssr: false });
 const number = (value: number) => value.toLocaleString('vi-VN');
 const suits: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
+type WagerRequest = {
+  handId?: string;
+  turnId?: string;
+  action: 'bet' | 'raise';
+  min: number;
+  max: number;
+};
 function Cards({ cards, hidden = false }: { cards: string[]; hidden?: boolean }) {
   return (
     <div className="cards">
@@ -47,11 +56,10 @@ const ranks = [
   ['Một đôi', 'AS AH 9D 6C 2S'],
   ['Mậu thầu', 'AS JH 9D 6C 2S'],
 ];
-function seatStyle(seat: number, viewer: number) {
-  const angle = (((seat - viewer + 9) % 9) / 9) * Math.PI * 2;
-  return { left: `${50 - Math.sin(angle) * 41}%`, top: `${50 + Math.cos(angle) * 37}%` };
-}
 export function PokerExperience() {
+  const portrait = usePortraitTable();
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [handDetails, setHandDetails] = useState(false);
   const session = useTableSession();
   const { table: roomTable, loading, connection, pending, message, invite, animate } = session;
   const table = roomTable?.gameType === 'liars-deck' ? undefined : roomTable;
@@ -67,6 +75,7 @@ export function PokerExperience() {
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState('');
   const [grant, setGrant] = useState(100);
+  const [wagerRequest, setWagerRequest] = useState<WagerRequest | null>(null);
   const now = pacing.now;
   const me = table?.players.find((p) => p.memberId === table.viewerMemberId);
   const combination =
@@ -153,11 +162,12 @@ export function PokerExperience() {
             <span className={`connection ${connection}`}>
               {connection === 'connected' ? '● Đã kết nối' : '○ Đang kết nối lại'}
             </span>
-            <nav>
+            <TableMenu>
               <button onClick={() => setPanel('invite')}>Lời mời</button>
               <button onClick={() => setPanel('help')}>Luật chơi</button>
               <button onClick={() => setPanel('admin')}>{host ? 'Quản lý' : 'Thông tin'}</button>
-            </nav>
+              <button onClick={() => setPanel('results')}>Kết quả</button>
+            </TableMenu>
           </header>
           <p className="portrait-hint">Xoay ngang thiết bị để quan sát bàn chơi thoải mái hơn.</p>
           <section className="table-stage" aria-label="Bàn chơi">
@@ -196,7 +206,7 @@ export function PokerExperience() {
                 <li
                   style={
                     {
-                      ...seatStyle(player.seat, me?.seat ?? 0),
+                      ...seatPosition(table, player.seat, me?.seat ?? 0, portrait),
                       '--deal-seat': [...table.players]
                         .filter((p) => !p.folded)
                         .sort(
@@ -210,6 +220,7 @@ export function PokerExperience() {
                     } as CSSProperties
                   }
                   key={player.memberId}
+                  data-member={player.memberId}
                   data-effect={
                     table.transition?.actorMemberId === player.memberId
                       ? table.transition.action
@@ -245,11 +256,15 @@ export function PokerExperience() {
                   {table.transition?.actorMemberId === player.memberId && (
                     <ActionEffect key={table.transition.id} action={table.transition.action} />
                   )}
-                  <div className="seat-name" title={player.displayName}>
+                  <button
+                    className="seat-name seat-details-button"
+                    title={player.displayName}
+                    onClick={() => setSelectedPlayer(player.memberId)}
+                  >
                     {player.isHost && <span aria-label="Chủ phòng">♛ </span>}
                     {player.displayName}
                     {player.memberId === me?.memberId ? ' (Bạn)' : ''}
-                  </div>
+                  </button>
                   <strong className="stack">{number(player.stack)}</strong>
                   {table.handId &&
                     !player.folded &&
@@ -307,8 +322,8 @@ export function PokerExperience() {
                                 ? `Đến lượt · ${remaining}s`
                                 : 'Đang chờ'}
                   </small>
-                  {player.contribution > 0 && (
-                    <span className="contribution">● {number(player.contribution)}</span>
+                  {(player.streetContribution ?? 0) > 0 && (
+                    <span className="contribution">● {number(player.streetContribution ?? 0)}</span>
                   )}
                   {player.isActing && (
                     <progress max={180} value={remaining} aria-label="Thời gian còn lại" />
@@ -316,7 +331,35 @@ export function PokerExperience() {
                 </li>
               ))}
             </ul>
-            {pacing.kind === 'payout' &&
+            {table.handId &&
+              (table.players.some((p) => p.contribution > 0) || !!table.pots.length) && (
+                <div className="pot-chip-pile" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                  <span>POT</span>
+                </div>
+              )}
+            {['street', 'showdown-reveal'].includes(pacing.kind ?? '') &&
+              pacing.motion &&
+              table.players
+                .filter((p) => p.contribution > 0)
+                .map((p) => (
+                  <span
+                    key={`${pacing.id}:collect:${p.memberId}`}
+                    className="chip-collect"
+                    aria-hidden="true"
+                    style={
+                      {
+                        '--chip-x': seatPosition(table, p.seat, me?.seat ?? 0, portrait).left,
+                        '--chip-y': seatPosition(table, p.seat, me?.seat ?? 0, portrait).top,
+                      } as CSSProperties
+                    }
+                  >
+                    ●
+                  </span>
+                ))}
+            {(pacing.kind === 'payout' || pacing.kind === 'fold-win') &&
               pacing.motion &&
               table.players
                 .filter((p) => table.pots.some((pot) => pot.winnerMemberIds?.includes(p.memberId)))
@@ -325,7 +368,7 @@ export function PokerExperience() {
                     key={`${pacing.id}:${p.memberId}`}
                     className="chip-flight"
                     aria-hidden="true"
-                    style={seatStyle(p.seat, me?.seat ?? 0)}
+                    style={seatPosition(table, p.seat, me?.seat ?? 0, portrait)}
                   >
                     ●
                   </span>
@@ -348,11 +391,11 @@ export function PokerExperience() {
                 cards={me?.holeCards?.length ? me.holeCards : ['AS', 'AS']}
                 hidden={hidden || !me?.holeCards?.length}
               />
-              <strong className="private-hand-name">
+              <button className="private-hand-name" onClick={() => setHandDetails(true)}>
                 {hidden
                   ? 'Thông tin bài đang được che'
                   : (table.handInfo?.name ?? 'Hai lá khởi đầu')}
-              </strong>
+              </button>
               {combination && (
                 <span className="hand-detail">
                   Lá tạo bộ: {combination.made}
@@ -369,6 +412,8 @@ export function PokerExperience() {
                 <Actions
                   key={`${table.handId}:${table.turnId}`}
                   table={table}
+                  portrait={portrait}
+                  openWager={setWagerRequest}
                   locked={locked}
                   send={session.send}
                   confirm={setConfirm}
@@ -410,6 +455,7 @@ export function PokerExperience() {
           </footer>
           {panel && (
             <Panel
+              yourTurn={Boolean(table.legalActions) && !locked}
               title={
                 {
                   invite: 'Lời mời phòng',
@@ -639,7 +685,13 @@ export function PokerExperience() {
                 <button onClick={() => setConfirm(null)}>Hủy</button>
                 <button
                   className="primary"
-                  disabled={locked}
+                  disabled={
+                    locked ||
+                    (confirm.event === 'game:action' &&
+                      (confirm.body.handId !== table.handId ||
+                        confirm.body.turnId !== table.turnId ||
+                        !table.legalActions?.actions.includes(confirm.body.action as PlayerAction)))
+                  }
                   onClick={() => {
                     session.send(confirm.event, confirm.body);
                     setConfirm(null);
@@ -648,6 +700,67 @@ export function PokerExperience() {
                   Xác nhận
                 </button>
               </div>
+            </Panel>
+          )}
+          {wagerRequest && (
+            <WagerSheet
+              request={wagerRequest}
+              table={table}
+              locked={locked}
+              close={() => setWagerRequest(null)}
+              send={session.send}
+            />
+          )}
+          {selectedPlayer && (
+            <Panel
+              title="Thông tin người chơi"
+              close={() => setSelectedPlayer(null)}
+              yourTurn={Boolean(table.legalActions) && !locked}
+            >
+              {table.players
+                .filter((p) => p.memberId === selectedPlayer)
+                .map((p) => (
+                  <div key={p.memberId}>
+                    <h2>{p.displayName}</h2>
+                    <p>
+                      {number(p.stack)} chip · Đã cược {number(p.streetContribution ?? 0)}
+                    </p>
+                    <p>
+                      {p.connected ? 'Đang kết nối' : 'Mất kết nối'} ·{' '}
+                      {p.folded
+                        ? 'Đã bỏ bài'
+                        : p.allIn
+                          ? 'Tất tay'
+                          : p.sittingOut
+                            ? 'Tạm nghỉ'
+                            : p.isActing
+                              ? 'Đến lượt'
+                              : 'Đang chờ'}
+                    </p>
+                    <p>
+                      {p.seat === table.buttonSeat ? 'D — Dealer ' : ''}
+                      {p.seat === table.smallBlindSeat ? 'SB — Small blind ' : ''}
+                      {p.seat === table.bigBlindSeat ? 'BB — Big blind' : ''}
+                    </p>
+                  </div>
+                ))}
+            </Panel>
+          )}
+          {handDetails && (
+            <Panel
+              title="Bài của bạn"
+              close={() => setHandDetails(false)}
+              yourTurn={Boolean(table.legalActions) && !locked}
+            >
+              {hidden ? (
+                <p>Thông tin bài đang được che</p>
+              ) : (
+                <>
+                  <p>{table.handInfo?.name ?? 'Hai lá khởi đầu'}</p>
+                  <p>{combination?.made}</p>
+                  <p>{combination?.kickers}</p>
+                </>
+              )}
             </Panel>
           )}
         </main>
@@ -680,8 +793,12 @@ function Actions({
   locked,
   send,
   confirm,
+  portrait,
+  openWager,
 }: {
   table: TableSnapshot;
+  portrait: boolean;
+  openWager: (request: WagerRequest) => void;
   locked: boolean;
   send: (event: string, body: Record<string, unknown>) => void;
   confirm: (value: { text: string; event: string; body: Record<string, unknown> }) => void;
@@ -718,33 +835,35 @@ function Actions({
   return (
     <>
       <span className="eyebrow">LƯỢT CỦA BẠN</span>
-      {canWager && (
-        <div className="wager-control">
-          <label>
-            Tổng mức cược
+      {canWager && !portrait && (
+        <>
+          <div className="wager-control">
+            <label>
+              Tổng mức cược
+              <input
+                aria-label="Mức cược"
+                type="number"
+                min={min}
+                max={max}
+                step={1}
+                value={wager}
+                onChange={(e) => setWager(Number(e.target.value))}
+              />
+            </label>
             <input
-              aria-label="Mức cược"
-              type="number"
+              aria-label="Thanh mức cược"
+              type="range"
               min={min}
               max={max}
               step={1}
-              value={wager}
+              value={Math.max(min, Math.min(max, wager))}
               onChange={(e) => setWager(Number(e.target.value))}
             />
-          </label>
-          <input
-            aria-label="Thanh mức cược"
-            type="range"
-            min={min}
-            max={max}
-            step={1}
-            value={Math.max(min, Math.min(max, wager))}
-            onChange={(e) => setWager(Number(e.target.value))}
-          />
-          <small>
-            {number(min)} – {number(max)} chip
-          </small>
-        </div>
+            <small>
+              {number(min)} – {number(max)} chip
+            </small>
+          </div>
+        </>
       )}
       <div className="action-buttons">
         {legal.actions
@@ -754,12 +873,92 @@ function Actions({
               key={action}
               className={action === 'fold' ? 'danger' : action === 'all-in' ? 'all-in' : 'primary'}
               disabled={locked || ((action === 'raise' || action === 'bet') && !valid)}
-              onClick={() => act(action)}
+              onClick={() =>
+                portrait && (action === 'raise' || action === 'bet')
+                  ? openWager({ handId: table.handId, turnId: table.turnId, action, min, max })
+                  : act(action)
+              }
             >
               {labels[action]}
             </button>
           ))}
       </div>
     </>
+  );
+}
+
+function WagerSheet({
+  request,
+  table,
+  locked,
+  close,
+  send,
+}: {
+  request: WagerRequest;
+  table: TableSnapshot;
+  locked: boolean;
+  close: () => void;
+  send: (event: string, body: Record<string, unknown>) => void;
+}) {
+  const [amount, setAmount] = useState(request.min);
+  const stale =
+    table.handId !== request.handId ||
+    table.turnId !== request.turnId ||
+    !table.legalActions?.actions.includes(request.action);
+  const min = table.legalActions?.minRaiseTo ?? request.min;
+  const max = table.legalActions?.maxRaiseTo ?? request.max;
+  const valid = Number.isSafeInteger(amount) && amount >= min && amount <= max;
+  return (
+    <Panel title="Cược / Tăng" close={close}>
+      <div className="wager-control">
+        <label>
+          Tổng mức cược
+          <input
+            aria-label="Mức cược"
+            type="number"
+            min={min}
+            max={max}
+            step={1}
+            value={amount}
+            disabled={stale || locked}
+            onChange={(e) => setAmount(Number(e.target.value))}
+          />
+        </label>
+        <input
+          aria-label="Thanh mức cược"
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={Math.max(min, Math.min(max, amount))}
+          disabled={stale || locked}
+          onChange={(e) => setAmount(Number(e.target.value))}
+        />
+        <small>
+          {number(min)} – {number(max)} chip
+        </small>
+      </div>
+      <p role="status">
+        {stale
+          ? 'Lượt đã thay đổi. Đóng bảng để trở lại bàn.'
+          : locked
+            ? 'Thao tác tạm khóa. Đang chờ kết nối hoặc xác nhận.'
+            : `Tăng lên tổng ${number(amount)} chip`}
+      </p>
+      <button
+        disabled={stale || locked || !valid}
+        onClick={() => {
+          send('game:action', {
+            handId: request.handId,
+            turnId: request.turnId,
+            action: request.action,
+            amount,
+          });
+          close();
+        }}
+      >
+        Xác nhận cược
+      </button>
+    </Panel>
   );
 }

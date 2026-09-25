@@ -59,6 +59,8 @@ export interface TablePlayerSnapshot {
   seat: number;
   stack: number;
   contribution: number;
+  /** Chips committed on the current betting street, excluding earlier streets. */
+  streetContribution?: number;
   connected: boolean;
   folded: boolean;
   allIn: boolean;

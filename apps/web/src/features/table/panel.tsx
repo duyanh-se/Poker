@@ -4,10 +4,12 @@ export function Panel({
   title,
   close,
   children,
+  yourTurn = false,
 }: {
   title: string;
   close: () => void;
   children: ReactNode;
+  yourTurn?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -28,7 +30,8 @@ export function Panel({
     return () => {
       clearTimeout(timer.current);
       dialog?.close();
-      previous?.focus();
+      if (previous?.getClientRects().length) previous.focus();
+      else document.querySelector<HTMLButtonElement>('.portrait-menu-toggle')?.focus();
     };
   }, []);
   return (
@@ -47,6 +50,11 @@ export function Panel({
           ✕
         </button>
       </header>
+      {yourTurn && (
+        <div className="panel-turn-reminder" role="status">
+          Đến lượt bạn <button onClick={requestClose}>Quay lại bàn</button>
+        </div>
+      )}
       <div className="panel-content">{children}</div>
     </dialog>
   );

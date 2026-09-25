@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { LiarsTableSnapshot } from '../../../../../packages/contracts/src';
-import { Card, Lives, rankNames } from './liars-pieces';
+import { Card, Lives, rankNames, HoldingHands } from './liars-pieces';
 import { TransitionStatus } from '../table/pacing';
 export function TurnControls({
   table,
@@ -19,7 +19,14 @@ export function TurnControls({
   seconds: number;
   send: (event: string, body: Record<string, unknown>) => void;
 }) {
-  const [selected, setSelected] = useState<string[]>([]);
+  const selectionScope = `${table.matchId}:${table.roundId}:${table.turnId}`;
+  const [selection, setSelection] = useState({ scope: selectionScope, ids: [] as string[] });
+  const selected = selection.scope === selectionScope ? selection.ids : [];
+  const setSelected = (value: string[] | ((ids: string[]) => string[])) =>
+    setSelection({
+      scope: selectionScope,
+      ids: typeof value === 'function' ? value(selected) : value,
+    });
   const me = table.players.find((p) => p.memberId === table.viewerMemberId)!;
   const host = table.hostMemberId === me.memberId;
   const target = rankNames[table.tableRank ?? ''] ?? '—';
@@ -45,7 +52,11 @@ export function TurnControls({
     table.players.find((p) => p.memberId === table.lastPlay?.memberId)?.displayName ?? 'Người chơi';
   return (
     <footer className="liar-dock">
-      <section className="liar-hand" aria-label="Bài của bạn">
+      <section
+        className="liar-hand liar-viewer-seat"
+        aria-label="Bài của bạn"
+        data-concealed={hidden}
+      >
         <div className="liar-hand-heading">
           <strong>
             {me.displayName} <small>· Bạn {host ? '· Chủ phòng' : ''}</small>
@@ -76,6 +87,7 @@ export function TurnControls({
               onClick={() => choose(card.id)}
             />
           ))}
+          <HoldingHands />
         </div>
       </section>
       <section className="liar-controls" aria-label="Thao tác vòng">

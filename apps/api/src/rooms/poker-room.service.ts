@@ -493,6 +493,7 @@ export class PokerRoomService {
         seat: item.seat,
         stack: item.stack,
         contribution: item.contribution,
+        streetContribution: item.streetContribution,
         connected: item.connected,
         folded: item.folded,
         allIn: item.allIn,
