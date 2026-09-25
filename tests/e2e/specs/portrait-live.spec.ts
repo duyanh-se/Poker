@@ -26,17 +26,12 @@ for (const game of ['poker', 'liars-deck']) {
       await guest.getByRole('button', { name: 'Vào bàn →' }).click();
       await expect(page.getByText('● Đã kết nối', { exact: true })).toBeVisible();
       await expect(guest.getByText('● Đã kết nối', { exact: true })).toBeVisible();
-      await menu(page, 'Chat');
       await page.getByLabel('Tin nhắn', { exact: true }).fill('<b>Xin chào</b>');
       await page.getByRole('button', { name: 'Gửi tin', exact: true }).click();
       await expect(page.getByText('<b>Xin chào</b>', { exact: true })).toBeVisible();
-      await page.keyboard.press('Escape');
-      await guest.getByRole('button', { name: 'Menu', exact: true }).click();
-      await guest.getByRole('button', { name: /^Chat/ }).click();
       await expect(guest.getByText('<b>Xin chào</b>', { exact: true })).toBeVisible();
-      await expect(guest.getByRole('dialog', { name: 'Chat phòng' })).toHaveCSS('opacity', '1');
+      await expect(guest.getByRole('complementary', { name: 'Chat phòng' })).toBeVisible();
       await guest.screenshot({ path: info.outputPath('chat.png'), fullPage: true });
-      await guest.keyboard.press('Escape');
       if (game === 'poker') {
         await menu(page, 'Quản lý');
         await page.getByRole('button', { name: 'Cấp chip cho tôi', exact: true }).click();
@@ -46,9 +41,7 @@ for (const game of ['poker', 'liars-deck']) {
         await page.keyboard.press('Escape');
       }
       await page.reload();
-      await menu(page, 'Chat');
       await expect(page.getByText('<b>Xin chào</b>', { exact: true })).toBeVisible();
-      await page.keyboard.press('Escape');
       await expect(
         page.getByRole('button', {
           name: game === 'poker' ? 'Bắt đầu ván' : 'Bắt đầu trận',

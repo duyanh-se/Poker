@@ -7,7 +7,7 @@ import { ActionEffect } from './action-effect';
 import { Entry } from './entry';
 import { LiarsTable } from '../liars/liars-table';
 import { Panel } from './panel';
-import { ChatButton } from './room-chat';
+import { RoomChat } from './room-chat';
 import { WagerIncrements } from './wager-increments';
 import { TableMenu, usePortraitTable } from './mobile-layout';
 import { evaluateBestHand, describeCombination } from './public-hand';
@@ -170,14 +170,14 @@ export function PokerExperience() {
               <button onClick={() => setPanel('help')}>Luật chơi</button>
               <button onClick={() => setPanel('admin')}>{host ? 'Quản lý' : 'Thông tin'}</button>
               <button onClick={() => setPanel('results')}>Kết quả</button>
-              <ChatButton
-                key={table.roomCode}
-                chat={session.chat}
-                connected={connection === 'connected'}
-                yourTurn={Boolean(table.legalActions) && !table.transition}
-              />
             </TableMenu>
           </header>
+          <RoomChat
+            key={table.roomCode}
+            chat={session.chat}
+            connected={connection === 'connected'}
+            yourTurn={Boolean(table.legalActions) && !table.transition}
+          />
           <p className="portrait-hint">Xoay ngang thiết bị để quan sát bàn chơi thoải mái hơn.</p>
           <section className="table-stage" aria-label="Bàn chơi">
             <Scene
