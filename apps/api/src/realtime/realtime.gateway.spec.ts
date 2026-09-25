@@ -35,6 +35,26 @@ function setupGateway() {
 describe('RealtimeGateway connection lifecycle', () => {
   afterEach(() => jest.useRealTimers());
 
+  it('rearms an early transition callback instead of leaving the table waiting forever', () => {
+    jest.useFakeTimers();
+    const { rooms, host, guest, gateway } = setupGateway();
+    rooms.grant(host.sessionId, host.snapshot.viewerMemberId, 100);
+    rooms.grant(host.sessionId, guest.snapshot.viewerMemberId, 100);
+    gateway.start(socket('host', host.sessionId), { commandId: 'start' });
+    const transition = rooms.current(host.sessionId).transition!;
+    const now = jest.spyOn(Date, 'now').mockReturnValue(transition.endsAt - 1);
+    jest.advanceTimersByTime(1800);
+    now.mockRestore();
+    expect(rooms.current(host.sessionId).transition?.id).toBe(transition.id);
+    jest.advanceTimersByTime(1);
+    const live = rooms.current(host.sessionId);
+    expect(live.transition).toBeUndefined();
+    expect(live.turnId).toBeDefined();
+    expect(live.deadlineAt).toBe(Date.now() + 180000);
+    gateway.onModuleDestroy();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
   it('does not schedule host closure when sockets disconnect during shutdown', () => {
     jest.useFakeTimers();
     const { host, gateway } = setupGateway();
@@ -42,6 +62,26 @@ describe('RealtimeGateway connection lifecycle', () => {
     gateway.handleConnection(hostSocket);
     gateway.onModuleDestroy();
     gateway.handleDisconnect(hostSocket);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('rearms an early action deadline and still applies timeout exactly once', () => {
+    jest.useFakeTimers();
+    const { rooms, host, guest, gateway } = setupGateway();
+    rooms.grant(host.sessionId, host.snapshot.viewerMemberId, 100);
+    rooms.grant(host.sessionId, guest.snapshot.viewerMemberId, 100);
+    gateway.start(socket('host', host.sessionId), { commandId: 'start' });
+    jest.advanceTimersByTime(1800);
+    const before = rooms.current(host.sessionId);
+    const timeout = jest.spyOn(rooms, 'timeout');
+    const now = jest.spyOn(Date, 'now').mockReturnValue(before.deadlineAt! - 1);
+    jest.advanceTimersByTime(180000);
+    now.mockRestore();
+    expect(timeout).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(1);
+    expect(timeout).toHaveBeenCalledTimes(1);
+    expect(rooms.current(host.sessionId).turnId).not.toBe(before.turnId);
+    gateway.onModuleDestroy();
     expect(jest.getTimerCount()).toBe(0);
   });
 
