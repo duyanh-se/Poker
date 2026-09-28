@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { Socket } from 'socket.io-client';
 import type { ChatMessage } from '../../../../../packages/contracts/src';
 
@@ -96,6 +96,9 @@ export function RoomChat({
   yourTurn: boolean;
 }) {
   const [draft, setDraft] = useState('');
+  const [collapsed, setCollapsed] = useState(false);
+  const [floatingTop, setFloatingTop] = useState<number | null>(null);
+  const asideRef = useRef<HTMLElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const chatRef = useRef(chat);
@@ -103,21 +106,78 @@ export function RoomChat({
     chatRef.current = chat;
   });
   useEffect(() => {
-    chatRef.current?.markOpen(true);
+    chatRef.current?.markOpen(!collapsed);
     return () => chatRef.current?.markOpen(false);
-  }, []);
+  }, [collapsed]);
+  useEffect(() => {
+    const aside = asideRef.current;
+    const shell = aside?.parentElement;
+    if (!aside || !shell || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const header = shell.querySelector('header');
+      const top = Math.max(12, header?.getBoundingClientRect().bottom ?? 82) + 12;
+      const left = window.innerWidth - 292;
+      const bottom = top + aside.getBoundingClientRect().height;
+      const obstacles = shell.querySelectorAll(
+        '.seat, .liar-seat, .liar-center, .liar-viewer-seat, .play-dock, .liar-controls, .board-accessible',
+      );
+      const blocked = [...obstacles].some((element) => {
+        const rect = element.getBoundingClientRect();
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.right + 16 > left &&
+          rect.left < window.innerWidth - 12 &&
+          rect.bottom + 16 > top &&
+          rect.top - 16 < bottom
+        );
+      });
+      setFloatingTop(
+        window.innerWidth >= 1600 && bottom < window.innerHeight - 16 && !blocked ? top : null,
+      );
+    };
+    const observer = new ResizeObserver(measure);
+    const rosterObserver = new MutationObserver(measure);
+    rosterObserver.observe(shell, { childList: true, subtree: true });
+    observer.observe(shell);
+    observer.observe(aside);
+    measure();
+    window.addEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      rosterObserver.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [collapsed, chat?.messages.length]);
   useEffect(() => {
     if (following.current && historyRef.current)
       historyRef.current.scrollTop = historyRef.current.scrollHeight;
-  }, [chat?.messages]);
+  }, [chat?.messages, collapsed]);
   if (!chat) return null;
   return (
-    <aside className="room-chat" aria-label="Chat phòng">
+    <aside
+      ref={asideRef}
+      className="room-chat"
+      aria-label="Chat phòng"
+      data-floating={floatingTop !== null}
+      style={{ '--chat-top': `${floatingTop ?? 0}px` } as CSSProperties}
+    >
       <header>
         <strong>Chat phòng</strong>
         {yourTurn && <span>Đến lượt bạn</span>}
+        <button type="button" aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>
+          {collapsed ? `Mở chat${chat.unread ? ` (${chat.unread})` : ''}` : 'Thu gọn'}
+        </button>
       </header>
+      {collapsed && (
+        <p className="chat-preview">
+          {chat.messages.length
+            ? `${chat.messages.at(-1)!.displayName}: ${chat.messages.at(-1)!.text}`
+            : 'Chưa có tin nhắn.'}
+        </p>
+      )}
       <div
+        hidden={collapsed}
         ref={historyRef}
         className="chat-history"
         role="log"
@@ -143,6 +203,7 @@ export function RoomChat({
         ))}
       </div>
       <form
+        hidden={collapsed}
         onSubmit={(e) => {
           e.preventDefault();
           if (connected && draft.trim() && [...draft.trim()].length <= 300)
@@ -150,9 +211,10 @@ export function RoomChat({
         }}
       >
         <label>
-          Tin nhắn
+          <span className="sr-only">Tin nhắn</span>
           <input
             aria-label="Tin nhắn"
+            placeholder="Nhập tin nhắn…"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             maxLength={600}

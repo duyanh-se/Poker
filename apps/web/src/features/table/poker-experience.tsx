@@ -172,12 +172,7 @@ export function PokerExperience() {
               <button onClick={() => setPanel('results')}>Kết quả</button>
             </TableMenu>
           </header>
-          <RoomChat
-            key={table.roomCode}
-            chat={session.chat}
-            connected={connection === 'connected'}
-            yourTurn={Boolean(table.legalActions) && !table.transition}
-          />
+
           <p className="portrait-hint">Xoay ngang thiết bị để quan sát bàn chơi thoải mái hơn.</p>
           <section className="table-stage" aria-label="Bàn chơi">
             <Scene
@@ -462,6 +457,12 @@ export function PokerExperience() {
               )}
             </section>
           </footer>
+          <RoomChat
+            key={table.roomCode}
+            chat={session.chat}
+            connected={connection === 'connected'}
+            yourTurn={Boolean(table.legalActions) && !table.transition}
+          />
           {panel && (
             <Panel
               yourTurn={Boolean(table.legalActions) && !locked}

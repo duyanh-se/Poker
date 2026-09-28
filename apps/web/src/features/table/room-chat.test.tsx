@@ -1,4 +1,4 @@
-import { act, render, renderHook, screen } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Socket } from 'socket.io-client';
 import { RoomChat, useRoomChat } from './room-chat';
@@ -80,5 +80,16 @@ describe('room chat', () => {
     expect(document.querySelector('.chat-history img')).toBeNull();
     expect(screen.getByText('Đến lượt bạn')).toBeVisible();
     expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Tin nhắn'), { target: { value: 'Bản nháp' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Thu gọn' }));
+    expect(screen.getByRole('button', { name: 'Mở chat (1)' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(chat.markOpen).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole('log')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Mở chat (1)' }));
+    expect(screen.getByLabelText('Tin nhắn')).toHaveValue('Bản nháp');
+    expect(chat.markOpen).toHaveBeenLastCalledWith(true);
   });
 });
