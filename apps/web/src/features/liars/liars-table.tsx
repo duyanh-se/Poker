@@ -88,11 +88,7 @@ export function LiarsTable({
           <button onClick={() => setResults(true)}>Kết quả</button>
         </TableMenu>
       </header>
-      <RoomChat
-        chat={chat}
-        connected={connection === 'connected'}
-        yourTurn={table.actingMemberId === me.memberId && !table.transition}
-      />
+
       <p className="liar-portrait">Xoay ngang điện thoại để nhìn rõ bàn và tay bài.</p>
       {(message || connection !== 'connected') && (
         <div className="liar-notice" role="status">
@@ -187,6 +183,11 @@ export function LiarsTable({
           send={send}
         />
       </section>
+      <RoomChat
+        chat={chat}
+        connected={connection === 'connected'}
+        yourTurn={table.actingMemberId === me.memberId && !table.transition}
+      />
       {panel && (
         <RoomPanel
           key={panel}

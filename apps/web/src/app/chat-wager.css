@@ -73,6 +73,7 @@
 }
 .room-chat label {
   min-width: 0;
+  margin: 0;
   font-size: 12px;
 }
 .room-chat input {
@@ -97,34 +98,45 @@
 .room-chat [role='status']:empty {
   display: none;
 }
-@media (min-width: 1200px) {
-  .game-shell:has(> .room-chat),
-  .liar-shell:has(> .room-chat) {
-    padding-right: 306px;
-  }
-  .room-chat {
-    position: fixed;
-    right: 0;
-    top: 94px;
-    width: 282px;
-    z-index: 20;
-    max-height: calc(100dvh - 118px);
-    overflow-y: auto;
-  }
-  .room-chat .chat-history {
-    height: min(48dvh, 420px);
-    max-height: none;
-  }
+/* Floating chat never reserves width in the table layout. */
+.room-chat[data-floating='true'] {
+  position: fixed;
+  right: 12px;
+  top: var(--chat-top);
+  width: 280px;
+  margin: 0;
+  z-index: 20;
 }
-@media (max-width: 1199px) {
-  .liar-shell:has(> .room-chat) {
-    grid-template-rows: auto auto 1fr auto;
-  }
-  .room-chat .chat-message {
-    padding: 4px 0;
-    font-size: 14px;
-  }
+.room-chat {
+  background: #142126e8;
+  align-self: stretch;
 }
+.room-chat header {
+  align-items: center;
+}
+.room-chat header button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 4px 8px;
+}
+.room-chat .chat-history {
+  height: auto;
+  max-height: 60px;
+}
+.room-chat .chat-message {
+  padding: 4px 0;
+  font-size: 14px;
+}
+.chat-preview {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.room-chat [hidden] {
+  display: none;
+}
+
 .chat-message {
   padding: 10px 0;
   border-bottom: 1px solid #ffffff24;

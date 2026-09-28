@@ -32,6 +32,21 @@ for (const game of ['poker', 'liars-deck']) {
       await expect(guest.getByText('<b>Xin chào</b>', { exact: true })).toBeVisible();
       await expect(guest.getByRole('complementary', { name: 'Chat phòng' })).toBeVisible();
       await guest.screenshot({ path: info.outputPath('chat.png'), fullPage: true });
+      await page.setViewportSize({ width: 1920, height: 1080 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      const shell = page.locator(game === 'poker' ? '.game-shell' : '.liar-shell');
+      await expect
+        .poll(() => shell.evaluate((el) => getComputedStyle(el).paddingRight))
+        .toBe('0px');
+      await page.getByLabel('Tin nhắn', { exact: true }).fill('Bản nháp còn nguyên');
+      await page.getByRole('button', { name: 'Thu gọn', exact: true }).click();
+      await guest.getByLabel('Tin nhắn', { exact: true }).fill('Tin mới khi thu gọn');
+      await guest.getByRole('button', { name: 'Gửi tin', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Mở chat (1)', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Mở chat (1)', exact: true }).click();
+      await expect(page.getByLabel('Tin nhắn', { exact: true })).toHaveValue('Bản nháp còn nguyên');
+      await page.screenshot({ path: info.outputPath('wide-chat.png'), fullPage: true });
+      await page.setViewportSize({ width: 390, height: 844 });
       if (game === 'poker') {
         await menu(page, 'Quản lý');
         await page.getByRole('button', { name: 'Cấp chip cho tôi', exact: true }).click();
