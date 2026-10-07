@@ -13,6 +13,7 @@ import {
 import type { TableSnapshot } from './store';
 import { seatAngle } from './seat-layout';
 import { canRender3DTable } from './table-render-mode';
+import { canRenderHand, isHandVisible, isPublicHand } from './card-visibility';
 
 type Props = { table: TableSnapshot; hidden: boolean; animate: boolean; elapsedMs?: number };
 const cardBody = new BoxGeometry(0.44, 0.018, 0.63);
@@ -251,9 +252,6 @@ function World({ table, hidden, animate, elapsedMs = 0 }: Props) {
     table.transition?.kind === 'fold-win';
   const collecting = ['street', 'showdown-reveal'].includes(table.transition?.kind ?? '');
   const awarding = ['payout', 'fold-win'].includes(table.transition?.kind ?? '');
-  const publicShowdown = table.players.some(
-    (p) => p.memberId !== table.viewerMemberId && p.holeCards?.length,
-  );
   return (
     <>
       <ambientLight intensity={1.5} />
@@ -310,16 +308,16 @@ function World({ table, hidden, animate, elapsedMs = 0 }: Props) {
           const angle = seatAngle(table, player.seat, viewer);
           const x = -Math.sin(angle) * 3.1;
           const z = Math.cos(angle) * 1.65;
-          const show = player.memberId === table.viewerMemberId ? !hidden || publicShowdown : true;
+          const show = isHandVisible(table, player, hidden);
           return (
             <group key={player.memberId}>
               {table.handId &&
-                !player.folded &&
+                canRenderHand(table, player) &&
                 [0, 1].map((i) => (
                   <CardMesh
                     key={`${table.handId}:${i}`}
                     card={show ? player.holeCards?.[i] : undefined}
-                    privatePeek={player.memberId === table.viewerMemberId && !publicShowdown}
+                    privatePeek={!isPublicHand(table, player)}
                     position={[x + (i - 0.5) * 0.38, 0.075, z]}
                     animate={
                       animate &&
