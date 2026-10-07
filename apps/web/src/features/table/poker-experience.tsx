@@ -4,6 +4,7 @@ import { useState, type CSSProperties } from 'react';
 import { useGamePacing, TransitionStatus } from './pacing';
 import { seatPosition } from './seat-layout';
 import { ActionEffect } from './action-effect';
+import { canRenderHand, isHandVisible, isPublicHand } from './card-visibility';
 import { Entry } from './entry';
 import { LiarsTable } from '../liars/liars-table';
 import { Panel } from './panel';
@@ -17,6 +18,13 @@ import { useTableStore, type PlayerAction, type TableSnapshot } from './store';
 const Scene = dynamic(() => import('./table-scene'), { ssr: false });
 const number = (value: number) => value.toLocaleString('vi-VN');
 const suits: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' };
+function hostCardPlacement(table: TableSnapshot, seat: number, viewer: number, portrait: boolean) {
+  const position = seatPosition(table, seat, viewer, portrait);
+  if (parseFloat(position.top) <= 25) return 'below';
+  if (parseFloat(position.left) <= 30) return 'right';
+  if (parseFloat(position.left) >= 70) return 'left';
+  return undefined;
+}
 type WagerRequest = {
   handId?: string;
   turnId?: string;
@@ -225,6 +233,11 @@ export function PokerExperience() {
                   }
                   key={player.memberId}
                   data-member={player.memberId}
+                  data-cards-placement={
+                    table.canViewAllHoleCards
+                      ? hostCardPlacement(table, player.seat, me?.seat ?? 0, portrait)
+                      : undefined
+                  }
                   data-effect={
                     table.transition?.actorMemberId === player.memberId
                       ? table.transition.action
@@ -278,23 +291,19 @@ export function PokerExperience() {
                         <Cards cards={['', '']} hidden />
                       </div>
                     )}
-                  {player.memberId === me?.memberId &&
-                    player.holeCards?.length &&
-                    !player.folded && (
-                      <div
-                        className="public-seat-cards private-table-cards"
-                        data-private-visible={!hidden}
-                      >
-                        <Cards cards={player.holeCards} hidden={hidden} />
-                      </div>
-                    )}
-                  {player.memberId !== me?.memberId &&
-                    player.holeCards?.length &&
-                    !player.folded && (
-                      <div className="public-seat-cards">
-                        <Cards cards={player.holeCards} />
-                      </div>
-                    )}
+                  {player.holeCards?.length && canRenderHand(table, player) && (
+                    <div
+                      className={`public-seat-cards ${isPublicHand(table, player) ? '' : 'private-table-cards'}`}
+                      data-private-visible={
+                        !isPublicHand(table, player) && isHandVisible(table, player, hidden)
+                      }
+                    >
+                      <Cards
+                        cards={player.holeCards}
+                        hidden={!isHandVisible(table, player, hidden)}
+                      />
+                    </div>
+                  )}
                   {table.transition?.actorMemberId === player.memberId &&
                     table.transition.action && (
                       <span className="confirmed-action">
@@ -385,15 +394,31 @@ export function PokerExperience() {
                 <button
                   className="subtle"
                   onClick={() => hide(!hidden)}
-                  disabled={!me?.holeCards?.length}
+                  disabled={
+                    table.canViewAllHoleCards
+                      ? !table.players.some((p) => p.holeCards?.length)
+                      : !me?.holeCards?.length
+                  }
                   aria-pressed={!hidden}
+                  aria-describedby={table.canViewAllHoleCards ? 'all-hands-hint' : undefined}
                 >
-                  {hidden ? 'Xem bài riêng' : 'Che bài riêng'}
+                  {table.canViewAllHoleCards
+                    ? hidden
+                      ? 'Xem tất cả bài'
+                      : 'Che tất cả bài'
+                    : hidden
+                      ? 'Xem bài riêng'
+                      : 'Che bài riêng'}
                 </button>
               </div>
+              {table.canViewAllHoleCards && (
+                <small id="all-hands-hint" className="muted all-hands-hint">
+                  Xem bài đã chia của mọi người, kể cả người đã bỏ bài, trên màn hình của bạn.
+                </small>
+              )}
               <Cards
                 cards={me?.holeCards?.length ? me.holeCards : ['AS', 'AS']}
-                hidden={hidden || !me?.holeCards?.length}
+                hidden={!me?.holeCards?.length || !isHandVisible(table, me, hidden)}
               />
               <button className="private-hand-name" onClick={() => setHandDetails(true)}>
                 {hidden
@@ -661,28 +686,21 @@ export function PokerExperience() {
                     </article>
                   ))}
                   {table.players
-                    .filter((p) => !p.folded && p.holeCards?.length)
+                    .filter((p) => canRenderHand(table, p) && p.holeCards?.length)
                     .map((p) => (
                       <article className="rank-row" key={p.memberId}>
                         <strong>{p.displayName}</strong>
-                        {table.board.length === 5 &&
-                          table.players.some(
-                            (other) => other.memberId !== me?.memberId && other.holeCards?.length,
-                          ) && <PublicHand cards={[...p.holeCards!, ...table.board]} />}
-                        <Cards
-                          cards={p.holeCards!}
-                          hidden={
-                            p.memberId === me?.memberId &&
-                            hidden &&
-                            !table.players.some(
-                              (other) => other.memberId !== me?.memberId && other.holeCards?.length,
-                            )
-                          }
-                        />
+                        {p.folded && <small>Đã bỏ bài</small>}
+                        {table.board.length === 5 && isPublicHand(table, p) && (
+                          <PublicHand cards={[...p.holeCards!, ...table.board]} />
+                        )}
+                        <Cards cards={p.holeCards!} hidden={!isHandVisible(table, p, hidden)} />
                       </article>
                     ))}
                   <p className="muted">
-                    Bài người đã bỏ giữ kín. Người thắng do tất cả đối thủ bỏ bài không phải mở bài.
+                    {table.canViewAllHoleCards
+                      ? 'Bạn có quyền xem riêng cả bài đã bỏ. Nút Che tất cả bài che các bài chưa công khai trên màn hình của bạn.'
+                      : 'Bài người đã bỏ giữ kín. Người thắng do tất cả đối thủ bỏ bài không phải mở bài.'}
                   </p>
                 </>
               )}

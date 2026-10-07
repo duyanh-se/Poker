@@ -8,6 +8,8 @@ import { RealtimeGateway } from '../src/realtime/realtime.gateway';
 
 type Snapshot = {
   handId?: string;
+  canViewAllHoleCards?: boolean;
+  showdown?: boolean;
   players: Array<{ memberId: string; holeCards?: string[] }>;
 };
 
@@ -50,8 +52,18 @@ function command(
   return new Promise((resolve) => socket.emit(event, body, resolve));
 }
 
-function nextSnapshot<T = Snapshot>(socket: Socket): Promise<T> {
-  return new Promise((resolve) => socket.once('table:snapshot', resolve));
+function nextSnapshot<T = Snapshot>(
+  socket: Socket,
+  accepts: (snapshot: T) => boolean = () => true,
+): Promise<T> {
+  return new Promise((resolve) => {
+    const listener = (snapshot: T) => {
+      if (!accepts(snapshot)) return;
+      socket.off('table:snapshot', listener);
+      resolve(snapshot);
+    };
+    socket.on('table:snapshot', listener);
+  });
 }
 
 function nextLiarsSnapshot(
@@ -124,8 +136,8 @@ describe('realtime transport', () => {
           amount: 100,
         }),
       ).toEqual({ ok: true });
-      const hostSnapshot = nextSnapshot(host);
-      const guestSnapshot = nextSnapshot(guest);
+      const hostSnapshot = nextSnapshot(host, (snapshot) => Boolean(snapshot.handId));
+      const guestSnapshot = nextSnapshot(guest, (snapshot) => Boolean(snapshot.handId));
       expect(await command(host, 'room:start', { commandId: 'start' })).toEqual({ ok: true });
 
       const [hostTable, guestTable] = await Promise.all([hostSnapshot, guestSnapshot]);
@@ -143,6 +155,74 @@ describe('realtime transport', () => {
       await Promise.all([disconnect(host), disconnect(guest)]);
     }
   });
+
+  it.each([
+    ['Duy Anh', 'Guest', true],
+    ['Host', 'Duy Anh', false],
+  ])(
+    'isolates host %s and guest %s cards in HTTP restoration and socket broadcasts',
+    async (hostName, guestName, qualifies) => {
+      const created = await request(app.getHttpServer())
+        .post('/rooms')
+        .send({ displayName: hostName, smallBlind: 5, bigBlind: 10, ante: 0 })
+        .expect(201);
+      const joined = await request(app.getHttpServer())
+        .post('/rooms/join')
+        .send({
+          roomCode: created.body.roomCode,
+          password: created.body.password,
+          displayName: guestName,
+        })
+        .expect(200);
+      const address = app.getHttpServer().address() as { port: number };
+      const url = `http://127.0.0.1:${address.port}`;
+      const hostCookie = cookieFrom(created);
+      const guestCookie = cookieFrom(joined);
+      const host = await connect(url, hostCookie);
+      const guest = await connect(url, guestCookie);
+      try {
+        for (const memberId of [
+          created.body.snapshot.viewerMemberId,
+          joined.body.snapshot.viewerMemberId,
+        ]) {
+          expect(
+            await command(host, 'room:grant', {
+              commandId: `grant-${memberId}`,
+              memberId,
+              amount: 100,
+            }),
+          ).toEqual({ ok: true });
+        }
+        const hostSnapshot = nextSnapshot(host, (snapshot) => Boolean(snapshot.handId));
+        const guestSnapshot = nextSnapshot(guest, (snapshot) => Boolean(snapshot.handId));
+        expect(await command(host, 'room:start', { commandId: 'start-visibility' })).toEqual({
+          ok: true,
+        });
+        const [hostTable, guestTable] = await Promise.all([hostSnapshot, guestSnapshot]);
+        expect(hostTable.canViewAllHoleCards).toBe(qualifies);
+        expect(hostTable.showdown).toBe(false);
+        expect(hostTable.players.filter((p) => p.holeCards?.length)).toHaveLength(
+          qualifies ? 2 : 1,
+        );
+        expect(guestTable.canViewAllHoleCards).toBe(false);
+        expect(guestTable.players.filter((p) => p.holeCards?.length)).toHaveLength(1);
+        for (const [cookie, socketTable] of [
+          [hostCookie, hostTable],
+          [guestCookie, guestTable],
+        ] as const) {
+          const restored = await request(app.getHttpServer())
+            .get('/rooms/current')
+            .set('Cookie', cookie)
+            .expect(200);
+          expect(restored.body.snapshot.players).toEqual(socketTable.players);
+          expect(restored.body.snapshot.canViewAllHoleCards).toBe(socketTable.canViewAllHoleCards);
+          expect(restored.body.snapshot.showdown).toBe(false);
+        }
+      } finally {
+        await Promise.all([disconnect(host), disconnect(guest)]);
+      }
+    },
+  );
 
   it('creates, starts and plays a private Bài nói dối round without exposing another hand', async () => {
     const created = await request(app.getHttpServer())

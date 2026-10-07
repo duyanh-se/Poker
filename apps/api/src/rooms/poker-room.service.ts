@@ -23,6 +23,8 @@ type CreateRoomRequest = RoomConfig & { displayName: string };
 type JoinRoomRequest = { roomCode: string; password: string; displayName: string };
 type Street = 'preflop' | 'flop' | 'turn' | 'river';
 export type PokerTableSnapshot = {
+  showdown?: boolean;
+  canViewAllHoleCards?: boolean;
   serverTime: number;
   transition?: GameTransition;
   gameType: 'poker';
@@ -475,7 +477,10 @@ export class PokerRoomService {
 
   private snapshot(room: Room, viewerId: string): PokerTableSnapshot {
     const viewer = this.member(room, viewerId);
+    const canViewAllHoleCards = viewer.id === room.hostId && viewer.displayName === 'Duy Anh';
     return {
+      showdown: room.showdown,
+      canViewAllHoleCards,
       serverTime: Date.now(),
       transition: room.transition,
       gameType: 'poker',
@@ -500,7 +505,7 @@ export class PokerRoomService {
         sittingOut: item.sittingOut,
         isHost: item.id === room.hostId,
         isActing: item.id === room.actingMemberId,
-        ...(item.id === viewer.id || (room.showdown && !item.folded)
+        ...(item.id === viewer.id || (room.showdown && !item.folded) || canViewAllHoleCards
           ? { holeCards: item.holeCards }
           : {}),
       })),

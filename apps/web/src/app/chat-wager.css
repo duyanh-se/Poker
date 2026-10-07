@@ -25,6 +25,30 @@
   min-height: 44px;
   padding: 8px 18px;
 }
+.my-hand > .all-hands-hint {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.game-shell .seat[data-cards-placement='below'] .public-seat-cards {
+  top: calc(100% + 34px);
+  bottom: auto;
+}
+.game-shell
+  .seat:is([data-cards-placement='left'], [data-cards-placement='right'])
+  .public-seat-cards {
+  top: 50%;
+  bottom: auto;
+  translate: 0 -50%;
+}
+.game-shell .seat[data-cards-placement='right'] .public-seat-cards {
+  left: calc(100% + 8px);
+}
+.game-shell .seat[data-cards-placement='left'] .public-seat-cards {
+  left: auto;
+  right: calc(100% + 8px);
+}
 .wager-increments {
   display: flex;
   flex-wrap: wrap;
