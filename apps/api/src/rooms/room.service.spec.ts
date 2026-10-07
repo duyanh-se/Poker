@@ -12,7 +12,10 @@ function paced(service: RoomService, snapshot: TableSnapshot): TableSnapshot {
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
 
-function createStartedRoom(): {
+function createStartedRoom(
+  hostName = 'Host',
+  guestName = 'Guest',
+): {
   service: RoomService;
   hostSessionId: string;
   guestSessionId: string;
@@ -20,11 +23,11 @@ function createStartedRoom(): {
   guestMemberId: string;
 } {
   const service = new RoomService();
-  const host = service.create({ displayName: 'Host', smallBlind: 5, bigBlind: 10, ante: 0 });
+  const host = service.create({ displayName: hostName, smallBlind: 5, bigBlind: 10, ante: 0 });
   const guest = service.join({
     roomCode: host.roomCode,
     password: host.password,
-    displayName: 'Guest',
+    displayName: guestName,
   });
   const hostMemberId = host.snapshot.viewerMemberId;
   const guestMemberId = guest.snapshot.viewerMemberId;
@@ -41,13 +44,13 @@ function createStartedRoom(): {
   };
 }
 
-function createThreePlayerRoom(): {
+function createThreePlayerRoom(hostName = 'Host'): {
   service: RoomService;
   sessions: Record<string, string>;
   memberIds: Record<string, string>;
 } {
   const service = new RoomService();
-  const host = service.create({ displayName: 'Host', smallBlind: 5, bigBlind: 10, ante: 0 });
+  const host = service.create({ displayName: hostName, smallBlind: 5, bigBlind: 10, ante: 0 });
   const guest = service.join({
     roomCode: host.roomCode,
     password: host.password,
@@ -77,6 +80,100 @@ function createThreePlayerRoom(): {
 }
 
 describe('RoomService administration', () => {
+  it.each([
+    ['Duy Anh', 'Guest', true],
+    [' Duy Anh ', 'Guest', true],
+    ['duy anh', 'Guest', false],
+    ['Duy  Anh', 'Guest', false],
+    ['Duy Anh!', 'Guest', false],
+    ['Host', 'Duy Anh', false],
+  ])('filters all-hand access for host %s and guest %s', (hostName, guestName, qualifies) => {
+    const room = createStartedRoom(hostName, guestName);
+    room.service.start(room.hostSessionId);
+    const hostView = room.service.current(room.hostSessionId);
+    const guestView = room.service.current(room.guestSessionId);
+    expect(hostView).toMatchObject({ canViewAllHoleCards: qualifies, showdown: false, board: [] });
+    expect(hostView.players.filter((p) => p.holeCards)).toHaveLength(qualifies ? 2 : 1);
+    expect(guestView).toMatchObject({ canViewAllHoleCards: false, showdown: false });
+    expect(guestView.players.filter((p) => p.holeCards)).toHaveLength(1);
+    expect(room.service.setConnected(room.hostSessionId, true)).toMatchObject({
+      canViewAllHoleCards: qualifies,
+      players: hostView.players,
+    });
+  });
+
+  it('retains folded hands privately, resets new hands and revokes access on host transfer', () => {
+    const room = createStartedRoom('Duy Anh');
+    const ready = paced(room.service, room.service.start(room.hostSessionId));
+    const actor =
+      ready.actingMemberId === room.hostMemberId ? room.hostSessionId : room.guestSessionId;
+    const settled = paced(
+      room.service,
+      room.service.action(actor, ready.handId!, ready.turnId!, 'fold'),
+    );
+    expect(settled.showdown).toBe(false);
+    const hostView = room.service.current(room.hostSessionId);
+    expect(
+      hostView.players.every((p) => Array.isArray(p.holeCards) && p.holeCards.length === 2),
+    ).toBe(true);
+    expect(hostView.players.find((p) => p.folded)?.holeCards).toHaveLength(2);
+    expect(
+      room.service.current(room.guestSessionId).players.filter((p) => p.holeCards),
+    ).toHaveLength(1);
+    const next = paced(room.service, room.service.start(room.hostSessionId));
+    expect(next.handId).not.toBe(ready.handId);
+    expect(next.players.every((p) => Array.isArray(p.holeCards) && p.holeCards.length === 2)).toBe(
+      true,
+    );
+    const nextActor =
+      next.actingMemberId === room.hostMemberId ? room.hostSessionId : room.guestSessionId;
+    paced(room.service, room.service.action(nextActor, next.handId!, next.turnId!, 'fold'));
+    const transferred = room.service.transferHost(room.hostSessionId, room.guestMemberId);
+    expect(transferred.canViewAllHoleCards).toBe(false);
+    expect(
+      transferred.players.find((p) => p.memberId === room.guestMemberId)?.holeCards,
+    ).toBeUndefined();
+    expect(room.service.setConnected(room.hostSessionId, true).canViewAllHoleCards).toBe(false);
+    room.service.transferHost(room.guestSessionId, room.hostMemberId);
+    expect(room.service.current(room.hostSessionId).canViewAllHoleCards).toBe(true);
+  });
+
+  it('publicly reveals only non-folded showdown hands while the qualifying host retains all hands', () => {
+    const room = createThreePlayerRoom('Duy Anh');
+    const hostSession = room.sessions[room.memberIds.host];
+    let state = paced(room.service, room.service.start(hostSession));
+    const foldedId = state.actingMemberId!;
+    for (const action of ['fold', 'all-in', 'call'] as const) {
+      state = paced(
+        room.service,
+        room.service.action(
+          room.sessions[state.actingMemberId!],
+          state.handId!,
+          state.turnId!,
+          action,
+        ),
+      );
+    }
+    const hostView = room.service.current(hostSession);
+    expect(hostView.showdown).toBe(true);
+    expect(
+      hostView.players.every((p) => Array.isArray(p.holeCards) && p.holeCards.length === 2),
+    ).toBe(true);
+    for (const id of [room.memberIds.guest, room.memberIds.third]) {
+      const view = room.service.current(room.sessions[id]);
+      expect(view.showdown).toBe(true);
+      expect(view.canViewAllHoleCards).toBe(false);
+      expect(view.players.find((p) => p.memberId === foldedId)?.holeCards).toEqual(
+        id === foldedId ? expect.any(Array) : undefined,
+      );
+      expect(
+        view.players
+          .filter((p) => !p.folded)
+          .every((p) => Array.isArray(p.holeCards) && p.holeCards.length === 2),
+      ).toBe(true);
+    }
+  });
+
   it('holds dealing without a deadline and rejects early or repeated transition callbacks', () => {
     const room = createStartedRoom();
     const dealing = room.service.start(room.hostSessionId);
