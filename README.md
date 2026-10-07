@@ -15,6 +15,8 @@ Both game types are RAM-only: restarting the API removes rooms and matches.
 
 Nút **Xem/Che bài** nằm gần tay bài của bạn; mất focus vẫn tự che bài. Poker có các nút **+1, +2, +5, +10, +20, +50** cộng vào tổng mức cược đang nhập, không gửi cược ngay. Ví dụ tổng 10, bấm +5 thành 15. Vẫn nhập trực tiếp hoặc dùng thanh kéo và xác nhận Cược/Tăng; mức vượt stack bị khóa.
 
+Trong Poker, chủ phòng hiện tại có tên hiển thị chính xác **Duy Anh** dùng nút **Xem tất cả bài / Che tất cả bài** ngay cạnh tay bài để xem mọi bài đã chia, kể cả bài đã bỏ. Quyền này áp dụng cho phiên của chủ phòng; khách cùng tên và chủ phòng tên khác không nhận thêm bài. Tên hiển thị không xác minh danh tính thật. Bài mặc định được che và tự che khi mất focus; bài công khai khi so bài vẫn hiện. Chuyển chủ sẽ tính lại quyền xem. Cần cập nhật cả API và Web để dùng tính năng này.
+
 Khi cập nhật tính năng chat, deploy cả API và Web. Không có migration hoặc biến môi trường mới.
 
 ## Prerequisites
