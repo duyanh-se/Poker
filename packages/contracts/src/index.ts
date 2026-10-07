@@ -93,6 +93,10 @@ export interface PotSnapshot {
 }
 
 export interface TableSnapshot {
+  /** True only once non-folded hands are publicly revealed at showdown. */
+  showdown?: boolean;
+  /** Recipient-specific server permission to view all dealt Poker hands. */
+  canViewAllHoleCards?: boolean;
   serverTime?: number;
   transition?: GameTransition;
   gameType: 'poker';
