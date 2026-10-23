@@ -190,4 +190,35 @@ describe('table session restoration and commands', () => {
     act(() => window.dispatchEvent(new Event('blur')));
     expect(useTableStore.getState().hidePrivateCards).toBe(true);
   });
+
+  it.each(['blur', 'visibilitychange', 'disconnect', 'connect_error'])(
+    'resets all-hand viewing on %s',
+    async (event) => {
+      const privileged: TableSnapshot = {
+        ...snapshot(),
+        handId: 'hand',
+        canViewAllHoleCards: true,
+        players: [
+          { memberId: 'guest', holeCards: ['KS', 'KH'] } as TableSnapshot['players'][number],
+        ],
+      };
+      vi.mocked(fetch).mockResolvedValue(response({ snapshot: privileged }));
+      renderHook(useTableSession);
+      await waitFor(() => expect(useTableStore.getState().table).toBeDefined());
+      receive('table:snapshot', privileged);
+      act(() => useTableStore.getState().revealAllHoleCards());
+      expect(useTableStore.getState().showAllHoleCards).toBe(true);
+      try {
+        if (event === 'blur') act(() => window.dispatchEvent(new Event('blur')));
+        else if (event === 'visibilitychange') {
+          vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+          act(() => document.dispatchEvent(new Event('visibilitychange')));
+        } else receive(event, 'transport close');
+        expect(useTableStore.getState().showAllHoleCards).toBe(false);
+        expect(useTableStore.getState().hidePrivateCards).toBe(true);
+      } finally {
+        vi.restoreAllMocks();
+      }
+    },
+  );
 });

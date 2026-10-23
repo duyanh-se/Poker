@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import HomePage from './page';
 import { type TableSnapshot, useTableStore } from '../features/table/store';
 import type { useTableSession } from '../features/table/use-table-session';
@@ -9,7 +9,11 @@ const sessionMock = vi.hoisted(() => ({ value: {} as ReturnType<typeof useTableS
 vi.mock('../features/table/use-table-session', () => ({
   useTableSession: () => sessionMock.value,
 }));
-vi.mock('next/dynamic', () => ({ default: () => () => <div data-testid="scene" /> }));
+vi.mock('next/dynamic', () => ({
+  default: () => (props: { allHandsVisible: boolean }) => (
+    <div data-testid="scene" data-all-hands-visible={props.allHandsVisible} />
+  ),
+}));
 
 function table(viewerMemberId = 'host'): TableSnapshot {
   return {
@@ -197,55 +201,110 @@ describe('Poker experience', () => {
     expect(screen.queryByText('Một đôi Át')).not.toBeInTheDocument();
   });
 
-  it('conceals all privileged hands in seats and results until the host reveals them', () => {
-    const snapshot = table();
-    snapshot.handId = 'hand';
-    snapshot.canViewAllHoleCards = true;
-    snapshot.showdown = false;
-    snapshot.players[0].displayName = 'Duy Anh';
-    snapshot.players[0].holeCards = ['AS', 'AH'];
-    snapshot.players[1].holeCards = ['KS', 'KH'];
-    snapshot.players[1].folded = true;
-    sessionMock.value.table = snapshot;
-    render(<HomePage />);
-    expect(screen.queryByLabelText('KS')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Xem tất cả bài' }));
-    expect(screen.getByLabelText('KS')).toBeInTheDocument();
-    expect(screen.getByText('Đã bỏ bài')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Kết quả' }));
-    expect(screen.getAllByLabelText('KS')).toHaveLength(2);
-    fireEvent.click(screen.getByRole('button', { name: 'Che tất cả bài' }));
-    expect(screen.queryByLabelText('KS')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('AS')).not.toBeInTheDocument();
-  });
+  describe('host private-card gesture', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
 
-  it('keeps public showdown hands visible while concealing host-only folded hands', () => {
-    const snapshot = table();
-    snapshot.showdown = true;
-    snapshot.canViewAllHoleCards = true;
-    snapshot.players[0].holeCards = ['AS', 'AH'];
-    snapshot.players[1].holeCards = ['KS', 'KH'];
-    snapshot.players[1].folded = true;
-    sessionMock.value.table = snapshot;
-    render(<HomePage />);
-    expect(screen.getAllByLabelText('AS')).toHaveLength(2);
-    expect(screen.queryByLabelText('KS')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Xem tất cả bài' }));
-    expect(screen.getByLabelText('KS')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Che tất cả bài' }));
-    expect(screen.getAllByLabelText('AS')).toHaveLength(2);
-    expect(screen.queryByLabelText('KS')).not.toBeInTheDocument();
-  });
+    function hostHand() {
+      const snapshot = table();
+      snapshot.handId = 'hand';
+      snapshot.canViewAllHoleCards = true;
+      snapshot.showdown = false;
+      snapshot.players[0].displayName = 'Duy Anh';
+      snapshot.players[0].holeCards = ['AS', 'AH'];
+      snapshot.players[1].holeCards = ['KS', 'KH'];
+      return snapshot;
+    }
+    function display(snapshot: TableSnapshot) {
+      sessionMock.value.table = snapshot;
+      act(() => useTableStore.getState().setSnapshot(snapshot));
+    }
+    function holdAll() {
+      const button = screen.getByRole('button', { name: /^(Xem|Che) bài riêng$/ });
+      fireEvent.keyDown(button, { key: 'Enter' });
+      act(() => vi.advanceTimersByTime(5000));
+      fireEvent.keyUp(button, { key: 'Enter' });
+      fireEvent.click(button);
+    }
 
-  it('lets a sitting-out host view other hands even without their own dealt cards', () => {
-    const snapshot = table();
-    snapshot.canViewAllHoleCards = true;
-    snapshot.players[0].folded = true;
-    snapshot.players[1].holeCards = ['KS', 'KH'];
-    sessionMock.value.table = snapshot;
-    render(<HomePage />);
-    fireEvent.click(screen.getByRole('button', { name: 'Xem tất cả bài' }));
-    expect(screen.getByLabelText('KS')).toBeInTheDocument();
+    it('keeps ordinary presentation and results until a completed hold', () => {
+      const snapshot = hostHand();
+      snapshot.players[1].folded = true;
+      display(snapshot);
+      const { container } = render(<HomePage />);
+      expect(
+        screen.queryByText(/tất cả bài|quyền xem riêng|Xem bài đã chia/),
+      ).not.toBeInTheDocument();
+      expect(container.querySelector('[data-cards-placement]')).toBeNull();
+      expect(container.querySelector('.seat.folded .cards')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Xem bài riêng' }));
+      expect(screen.getAllByLabelText('AS')).toHaveLength(2);
+      expect(screen.queryByLabelText('KS')).not.toBeInTheDocument();
+      expect(screen.getByTestId('scene')).toHaveAttribute('data-all-hands-visible', 'false');
+      fireEvent.click(screen.getByRole('button', { name: 'Kết quả' }));
+      expect(container.querySelectorAll('.rank-row')).toHaveLength(1);
+      expect(screen.queryByLabelText('KS')).not.toBeInTheDocument();
+    });
+
+    it('reveals privileged seats and results after holding and resets on conceal', () => {
+      const snapshot = hostHand();
+      snapshot.players[1].folded = true;
+      display(snapshot);
+      render(<HomePage />);
+      holdAll();
+      expect(screen.getByLabelText('KS')).toBeInTheDocument();
+      expect(screen.getByText('Đã bỏ bài')).toBeInTheDocument();
+      expect(screen.getByTestId('scene')).toHaveAttribute('data-all-hands-visible', 'true');
+      fireEvent.click(screen.getByRole('button', { name: 'Kết quả' }));
+      expect(screen.getAllByLabelText('KS')).toHaveLength(2);
+      fireEvent.click(screen.getByRole('button', { name: 'Che bài riêng' }));
+      expect(screen.queryByLabelText('KS')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('AS')).not.toBeInTheDocument();
+      expect(screen.getByTestId('scene')).toHaveAttribute('data-all-hands-visible', 'false');
+    });
+
+    it('keeps public showdown hands visible while concealing host-only folded hands', () => {
+      const snapshot = hostHand();
+      snapshot.showdown = true;
+      snapshot.players[1].folded = true;
+      display(snapshot);
+      render(<HomePage />);
+      expect(screen.getAllByLabelText('AS')).toHaveLength(2);
+      expect(screen.queryByLabelText('KS')).not.toBeInTheDocument();
+      holdAll();
+      expect(screen.getByLabelText('KS')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Che bài riêng' }));
+      expect(screen.getAllByLabelText('AS')).toHaveLength(2);
+      expect(screen.queryByLabelText('KS')).not.toBeInTheDocument();
+    });
+
+    it('lets a sitting-out host hold to view other hands without their own dealt cards', () => {
+      const snapshot = hostHand();
+      snapshot.players[0].folded = true;
+      snapshot.players[0].holeCards = undefined;
+      display(snapshot);
+      render(<HomePage />);
+      fireEvent.click(screen.getByRole('button', { name: 'Xem bài riêng' }));
+      expect(screen.queryByLabelText('KS')).not.toBeInTheDocument();
+      holdAll();
+      expect(screen.getByLabelText('KS')).toBeInTheDocument();
+    });
+
+    it('preserves same-hand viewing but requires a fresh hold on the next hand', () => {
+      const snapshot = hostHand();
+      display(snapshot);
+      const view = render(<HomePage />);
+      holdAll();
+      display({ ...snapshot, version: 2, board: ['2S', '3H', '4D'] });
+      view.rerender(<HomePage />);
+      expect(screen.getByLabelText('KS')).toBeInTheDocument();
+      display({ ...snapshot, version: 3, handId: 'next' });
+      view.rerender(<HomePage />);
+      expect(screen.queryByLabelText('KS')).not.toBeInTheDocument();
+      expect(screen.getAllByLabelText('AS')).toHaveLength(2);
+      holdAll();
+      expect(screen.getByLabelText('KS')).toBeInTheDocument();
+    });
   });
 
   it('enforces raise bounds and requires all-in confirmation', () => {

@@ -40,4 +40,57 @@ describe('table store', () => {
     expect(useTableStore.getState().requestMessage).toBe('Không thể vào phòng.');
     expect(useTableStore.getState().table?.roomCode).toBe('ABCD2345');
   });
+
+  const hostHand = (): TableSnapshot => ({
+    ...snapshot(2),
+    handId: 'hand',
+    canViewAllHoleCards: true,
+    players: [{ memberId: 'guest', holeCards: ['KS', 'KH'] } as TableSnapshot['players'][number]],
+  });
+
+  it('keeps all-hand viewing separate from revealing own cards and clears it on conceal/exit', () => {
+    useTableStore.getState().setSnapshot(hostHand());
+    useTableStore.getState().setPrivateCardsHidden(false);
+    expect(useTableStore.getState().showAllHoleCards).toBe(false);
+    useTableStore.getState().revealAllHoleCards();
+    expect(useTableStore.getState().showAllHoleCards).toBe(true);
+    expect(useTableStore.getState().hidePrivateCards).toBe(false);
+    useTableStore.getState().setPrivateCardsHidden(true);
+    expect(useTableStore.getState().showAllHoleCards).toBe(false);
+    useTableStore.getState().revealAllHoleCards();
+    useTableStore.getState().clear();
+    expect(useTableStore.getState().showAllHoleCards).toBe(false);
+  });
+
+  it.each([{ canViewAllHoleCards: false }, { players: [] }])(
+    'does not unlock without entitlement and dealt cards: %j',
+    (change) => {
+      useTableStore.getState().setSnapshot({ ...hostHand(), ...change });
+      useTableStore.getState().revealAllHoleCards();
+      expect(useTableStore.getState().showAllHoleCards).toBe(false);
+      expect(useTableStore.getState().hidePrivateCards).toBe(true);
+    },
+  );
+
+  it('preserves all-hand viewing for same-hand updates and ignores stale snapshots', () => {
+    useTableStore.getState().setSnapshot(hostHand());
+    useTableStore.getState().revealAllHoleCards();
+    useTableStore.getState().setSnapshot({ ...hostHand(), version: 3, board: ['AS', '2H', '3D'] });
+    expect(useTableStore.getState().showAllHoleCards).toBe(true);
+    useTableStore.getState().setSnapshot({ ...hostHand(), version: 1, handId: 'old' });
+    expect(useTableStore.getState().showAllHoleCards).toBe(true);
+    expect(useTableStore.getState().table?.version).toBe(3);
+  });
+
+  it.each([
+    { handId: 'next-hand' },
+    { roomCode: 'OTHERROOM' },
+    { viewerMemberId: 'guest' },
+    { canViewAllHoleCards: false },
+  ])('requires a fresh reveal when card scope changes: %j', (change) => {
+    useTableStore.getState().setSnapshot(hostHand());
+    useTableStore.getState().revealAllHoleCards();
+    useTableStore.getState().setSnapshot({ ...hostHand(), version: 3, ...change });
+    expect(useTableStore.getState().showAllHoleCards).toBe(false);
+  });
 });

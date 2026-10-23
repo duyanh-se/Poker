@@ -137,6 +137,7 @@ export function useTableSession() {
           useTableStore.getState().setRequestMessage(error.message);
         return true;
       }
+      useTableStore.getState().setPrivateCardsHidden(true);
       setConnection('offline');
       useTableStore
         .getState()
@@ -221,6 +222,7 @@ export function useTableSession() {
       }
     });
     socket.on('connect_error', () => {
+      useTableStore.getState().setPrivateCardsHidden(true);
       setConnection('offline');
       setAnimate(false);
     });

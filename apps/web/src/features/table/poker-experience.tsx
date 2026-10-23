@@ -8,6 +8,7 @@ import { canRenderHand, isHandVisible, isPublicHand } from './card-visibility';
 import { Entry } from './entry';
 import { LiarsTable } from '../liars/liars-table';
 import { Panel } from './panel';
+import { PrivateCardControl } from './private-card-control';
 import { RoomChat } from './room-chat';
 import { WagerIncrements } from './wager-increments';
 import { TableMenu, usePortraitTable } from './mobile-layout';
@@ -75,7 +76,13 @@ export function PokerExperience() {
   const table = roomTable?.gameType === 'liars-deck' ? undefined : roomTable;
   const pacing = useGamePacing(table, animate);
   const hidden = useTableStore((s) => s.hidePrivateCards);
+  const showAllHoleCards = useTableStore((s) => s.showAllHoleCards);
   const hide = useTableStore((s) => s.setPrivateCardsHidden);
+  const allHandsVisible =
+    !hidden &&
+    connection === 'connected' &&
+    table?.canViewAllHoleCards === true &&
+    showAllHoleCards;
   const [panel, setPanel] = useState<'invite' | 'admin' | 'help' | 'results' | null>(null);
   const [confirm, setConfirm] = useState<{
     text: string;
@@ -186,6 +193,7 @@ export function PokerExperience() {
             <Scene
               table={table}
               hidden={hidden}
+              allHandsVisible={allHandsVisible}
               animate={pacing.motion}
               elapsedMs={pacing.elapsedMs}
             />
@@ -234,7 +242,7 @@ export function PokerExperience() {
                   key={player.memberId}
                   data-member={player.memberId}
                   data-cards-placement={
-                    table.canViewAllHoleCards
+                    allHandsVisible
                       ? hostCardPlacement(table, player.seat, me?.seat ?? 0, portrait)
                       : undefined
                   }
@@ -291,16 +299,17 @@ export function PokerExperience() {
                         <Cards cards={['', '']} hidden />
                       </div>
                     )}
-                  {player.holeCards?.length && canRenderHand(table, player) && (
+                  {player.holeCards?.length && canRenderHand(table, player, allHandsVisible) && (
                     <div
                       className={`public-seat-cards ${isPublicHand(table, player) ? '' : 'private-table-cards'}`}
                       data-private-visible={
-                        !isPublicHand(table, player) && isHandVisible(table, player, hidden)
+                        !isPublicHand(table, player) &&
+                        isHandVisible(table, player, hidden, allHandsVisible)
                       }
                     >
                       <Cards
                         cards={player.holeCards}
-                        hidden={!isHandVisible(table, player, hidden)}
+                        hidden={!isHandVisible(table, player, hidden, allHandsVisible)}
                       />
                     </div>
                   )}
@@ -391,34 +400,13 @@ export function PokerExperience() {
             <section className="my-hand" data-private-visible={!hidden && !!me?.holeCards?.length}>
               <div className="private-view-toolbar">
                 <span className="eyebrow">BÀI CỦA BẠN</span>
-                <button
-                  className="subtle"
-                  onClick={() => hide(!hidden)}
-                  disabled={
-                    table.canViewAllHoleCards
-                      ? !table.players.some((p) => p.holeCards?.length)
-                      : !me?.holeCards?.length
-                  }
-                  aria-pressed={!hidden}
-                  aria-describedby={table.canViewAllHoleCards ? 'all-hands-hint' : undefined}
-                >
-                  {table.canViewAllHoleCards
-                    ? hidden
-                      ? 'Xem tất cả bài'
-                      : 'Che tất cả bài'
-                    : hidden
-                      ? 'Xem bài riêng'
-                      : 'Che bài riêng'}
-                </button>
+                <PrivateCardControl table={table} connected={connection === 'connected'} />
               </div>
-              {table.canViewAllHoleCards && (
-                <small id="all-hands-hint" className="muted all-hands-hint">
-                  Xem bài đã chia của mọi người, kể cả người đã bỏ bài, trên màn hình của bạn.
-                </small>
-              )}
               <Cards
                 cards={me?.holeCards?.length ? me.holeCards : ['AS', 'AS']}
-                hidden={!me?.holeCards?.length || !isHandVisible(table, me, hidden)}
+                hidden={
+                  !me?.holeCards?.length || !isHandVisible(table, me, hidden, allHandsVisible)
+                }
               />
               <button className="private-hand-name" onClick={() => setHandDetails(true)}>
                 {hidden
@@ -686,7 +674,14 @@ export function PokerExperience() {
                     </article>
                   ))}
                   {table.players
-                    .filter((p) => canRenderHand(table, p) && p.holeCards?.length)
+                    .filter(
+                      (p) =>
+                        canRenderHand(table, p, allHandsVisible) &&
+                        p.holeCards?.length &&
+                        (p.memberId === table.viewerMemberId ||
+                          isPublicHand(table, p) ||
+                          allHandsVisible),
+                    )
                     .map((p) => (
                       <article className="rank-row" key={p.memberId}>
                         <strong>{p.displayName}</strong>
@@ -694,13 +689,14 @@ export function PokerExperience() {
                         {table.board.length === 5 && isPublicHand(table, p) && (
                           <PublicHand cards={[...p.holeCards!, ...table.board]} />
                         )}
-                        <Cards cards={p.holeCards!} hidden={!isHandVisible(table, p, hidden)} />
+                        <Cards
+                          cards={p.holeCards!}
+                          hidden={!isHandVisible(table, p, hidden, allHandsVisible)}
+                        />
                       </article>
                     ))}
                   <p className="muted">
-                    {table.canViewAllHoleCards
-                      ? 'Bạn có quyền xem riêng cả bài đã bỏ. Nút Che tất cả bài che các bài chưa công khai trên màn hình của bạn.'
-                      : 'Bài người đã bỏ giữ kín. Người thắng do tất cả đối thủ bỏ bài không phải mở bài.'}
+                    Bài người đã bỏ giữ kín. Người thắng do tất cả đối thủ bỏ bài không phải mở bài.
                   </p>
                 </>
               )}
