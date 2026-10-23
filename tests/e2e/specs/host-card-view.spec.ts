@@ -1,5 +1,42 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import type { TableSnapshot } from '../../../../packages/contracts/src';
+
+test.use({ hasTouch: true });
+
+async function holdAllHands(page: Page, count: number) {
+  const button = page.getByRole('button', { name: /^(Xem|Che) bài riêng$/ });
+  await button.hover();
+  await page.mouse.down();
+  try {
+    await expect(page.locator('.seats .card:not(.card-back)')).toHaveCount(count, {
+      timeout: 8000,
+    });
+  } finally {
+    await page.mouse.up();
+  }
+}
+
+async function connectedFixture(page: Page, snapshot: TableSnapshot) {
+  // Model the Engine.IO/Socket.IO handshake so fixtures have a confirmed
+  // connection without a real session or a later disconnect hiding the cards.
+  let delivered = false;
+  await page.route('**/socket.io/**', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ body: 'ok' });
+    } else if (!new URL(route.request().url()).searchParams.has('sid')) {
+      await route.fulfill({
+        body: `0${JSON.stringify({ sid: 'fixture', upgrades: [], pingInterval: 60000, pingTimeout: 60000 })}`,
+      });
+    } else if (!delivered) {
+      delivered = true;
+      await route.fulfill({
+        body: `40/game,{"sid":"fixture"}\x1e42/game,${JSON.stringify(['table:snapshot', snapshot])}`,
+      });
+    }
+    // Later long polls remain pending for this short-lived visual fixture.
+  });
+  await page.route('**/api/rooms/current', (route) => route.fulfill({ json: { snapshot } }));
+}
 
 for (const size of [
   { width: 1440, height: 900 },
@@ -11,9 +48,6 @@ for (const size of [
   }, testInfo) => {
     await page.setViewportSize(size);
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    // Visual fixtures have no real session: block transport so a delayed server
-    // rejection cannot conceal cards midway through the layout assertions.
-    await page.route('**/socket.io/**', (route) => route.abort());
     const cards = [
       'AS',
       'AH',
@@ -62,9 +96,34 @@ for (const size of [
         holeCards: cards.slice(seat * 2, seat * 2 + 2),
       })),
     };
-    await page.route('**/api/rooms/current', (route) => route.fulfill({ json: { snapshot } }));
+    await connectedFixture(page, snapshot);
     await page.goto('/');
-    await page.getByRole('button', { name: 'Xem tất cả bài' }).click();
+    await expect(page.locator('.connection')).toHaveClass(/\bconnected\b/);
+    await expect(page.getByText(/Xem tất cả bài|Che tất cả bài|Xem bài đã chia/)).toHaveCount(0);
+    await expect(page.locator('[data-cards-placement]')).toHaveCount(0);
+    await expect(page.locator('.seat.folded .card')).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath('ordinary-host-ui.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Xem bài riêng' }).click();
+    await expect(page.locator('.seats .card:not(.card-back)')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Che bài riêng' }).click();
+    if (size.width === 390) {
+      const button = page.getByRole('button', { name: 'Xem bài riêng' });
+      await button.scrollIntoViewIfNeeded();
+      const box = (await button.boundingBox())!;
+      const touch = await page.context().newCDPSession(page);
+      try {
+        await touch.send('Input.dispatchTouchEvent', {
+          type: 'touchStart',
+          touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }],
+        });
+        await expect(page.locator('.seats .card:not(.card-back)')).toHaveCount(18, {
+          timeout: 8000,
+        });
+        await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      } finally {
+        await touch.detach();
+      }
+    } else await holdAllHands(page, 18);
     await expect(page.locator('.seats .card:not(.card-back)')).toHaveCount(18);
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
@@ -103,7 +162,7 @@ for (const size of [
         fullPage: true,
       });
     }
-    await page.getByRole('button', { name: 'Che tất cả bài' }).click();
+    await page.getByRole('button', { name: 'Che bài riêng' }).click();
     await expect(page.locator('.seats .card:not(.card-back)')).toHaveCount(0);
   });
 }
@@ -112,6 +171,7 @@ test('Duy Anh host reveals all hands, conceals on blur, restores and loses acces
   browser,
   page,
 }, testInfo) => {
+  test.setTimeout(120000);
   await page.setViewportSize({ width: 1440, height: 900 });
   const created = await page.request.post('/api/rooms', {
     data: { displayName: 'Duy Anh', smallBlind: 5, bigBlind: 10, ante: 0 },
@@ -137,7 +197,7 @@ test('Duy Anh host reveals all hands, conceals on blur, restores and loses acces
     await expect(page.getByRole('button', { name: 'Cấp chip', exact: true })).toBeEnabled();
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Bắt đầu ván', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Xem tất cả bài' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Xem bài riêng' })).toBeEnabled();
     const current = async (target: typeof page): Promise<TableSnapshot> =>
       (await (await target.request.get('/api/rooms/current')).json()).snapshot;
     const hostView = await current(page);
@@ -149,18 +209,20 @@ test('Duy Anh host reveals all hands, conceals on blur, restores and loses acces
     const guestCards = hostView.players.find((p) => p.memberId === guestId)!.holeCards!;
     const seat = page.locator(`.seat[data-member="${guestId}"]`);
     await expect(seat.locator('.card:not(.card-back)')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Xem tất cả bài' }).click();
+    await page.getByRole('button', { name: 'Xem bài riêng' }).click();
+    await expect(seat.locator('.card:not(.card-back)')).toHaveCount(0);
+    await holdAllHands(page, 4);
     for (const card of guestCards)
       await expect(seat.getByLabel(card, { exact: true })).toHaveCount(1);
     await expect(page.getByTestId('table-3d')).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('host-3d.png'), fullPage: true });
     await page.evaluate(() => window.dispatchEvent(new Event('blur')));
-    await expect(page.getByRole('button', { name: 'Xem tất cả bài' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Xem bài riêng' })).toBeVisible();
     await expect(seat.locator('.card:not(.card-back)')).toHaveCount(0);
     await page.reload();
-    await expect(page.getByRole('button', { name: 'Xem tất cả bài' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Xem bài riêng' })).toBeEnabled();
     await expect(seat.locator('.card:not(.card-back)')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Xem tất cả bài' }).click();
+    await holdAllHands(page, 4);
     await expect
       .poll(
         async () =>
@@ -174,8 +236,7 @@ test('Duy Anh host reveals all hands, conceals on blur, restores and loses acces
     await actor.getByRole('button', { name: 'Bỏ bài', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Bắt đầu ván', exact: true })).toBeEnabled();
     // Opening the other browser can blur the host; explicitly reveal again if needed.
-    if (await page.getByRole('button', { name: 'Xem tất cả bài' }).count())
-      await page.getByRole('button', { name: 'Xem tất cả bài' }).click();
+    if (!(await seat.locator('.card:not(.card-back)').count())) await holdAllHands(page, 4);
     const result = await current(page);
     expect(result.showdown).toBe(false);
     for (const p of result.players) expect(p.holeCards).toHaveLength(2);
@@ -191,7 +252,7 @@ test('Duy Anh host reveals all hands, conceals on blur, restores and loses acces
     expect(cardBox!.y).toBeGreaterThanOrEqual(stageBox!.y);
     expect(cardBox!.y + cardBox!.height).toBeLessThanOrEqual(stageBox!.y + stageBox!.height);
     await page.screenshot({ path: testInfo.outputPath('host-landscape.png'), fullPage: true });
-    await page.getByRole('button', { name: 'Che tất cả bài' }).click();
+    await page.getByRole('button', { name: 'Che bài riêng' }).click();
     await expect(seat.locator('.card:not(.card-back)')).toHaveCount(0);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByRole('button', { name: 'Quản lý', exact: true }).click();
@@ -200,7 +261,7 @@ test('Duy Anh host reveals all hands, conceals on blur, restores and loses acces
       .getByRole('dialog', { name: 'Xác nhận thao tác' })
       .getByRole('button', { name: 'Xác nhận', exact: true })
       .click();
-    await expect(page.getByRole('button', { name: 'Xem tất cả bài' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Xem bài riêng' })).toBeVisible();
     expect((await current(page)).canViewAllHoleCards).toBe(false);
     expect(
       (await current(page)).players.find((p) => p.memberId === guestId)?.holeCards,

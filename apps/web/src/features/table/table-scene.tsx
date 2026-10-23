@@ -15,7 +15,13 @@ import { seatAngle } from './seat-layout';
 import { canRender3DTable } from './table-render-mode';
 import { canRenderHand, isHandVisible, isPublicHand } from './card-visibility';
 
-type Props = { table: TableSnapshot; hidden: boolean; animate: boolean; elapsedMs?: number };
+type Props = {
+  table: TableSnapshot;
+  hidden: boolean;
+  allHandsVisible: boolean;
+  animate: boolean;
+  elapsedMs?: number;
+};
 const cardBody = new BoxGeometry(0.44, 0.018, 0.63);
 const cardFace = new PlaneGeometry(0.43, 0.62);
 const chipBody = new CylinderGeometry(0.105, 0.105, 0.045, 24);
@@ -222,7 +228,7 @@ function MotionPile({
     </group>
   );
 }
-function World({ table, hidden, animate, elapsedMs = 0 }: Props) {
+function World({ table, hidden, allHandsVisible, animate, elapsedMs = 0 }: Props) {
   const [wagers, setWagers] = useState({
     snapshot: table,
     collected: {} as Record<string, number>,
@@ -308,11 +314,11 @@ function World({ table, hidden, animate, elapsedMs = 0 }: Props) {
           const angle = seatAngle(table, player.seat, viewer);
           const x = -Math.sin(angle) * 3.1;
           const z = Math.cos(angle) * 1.65;
-          const show = isHandVisible(table, player, hidden);
+          const show = isHandVisible(table, player, hidden, allHandsVisible);
           return (
             <group key={player.memberId}>
               {table.handId &&
-                canRenderHand(table, player) &&
+                canRenderHand(table, player, allHandsVisible) &&
                 [0, 1].map((i) => (
                   <CardMesh
                     key={`${table.handId}:${i}`}
