@@ -6,8 +6,11 @@
 
 - **Texas Hold'em:** No-Limit private poker with host-confirmed hands.
 - **Bài nói dối:** 2–4 players, 1–10 starting lives, face-down claims, challenges and a host-confirmed next round. Joker is always valid; private cards are delivered only to their owner.
+- **Mũ Trắng:** 4–12 người chơi và 1 quản trò không tham gia. Quản trò nhập hai từ, dùng chia role tự động hoặc chỉnh số gián điệp/mũ trắng, đặt số người bị loại mỗi vòng rồi lưu và bắt đầu. Người chơi chỉ nhận từ riêng, không có nhãn role. Mô tả lần lượt 60 giây; vote/bầu lại 60 giây, hòa lần hai do quản trò phân xử. Phiếu công khai khi chốt, role bị loại giấu tới cuối ván. Mỗi đợt vote có cùng 30 giây chờ quyền đoán cuối; mũ trắng cũng được lộ diện đoán ở hai khoảng nghỉ. Đúng dấu và đúng từ dân thường thì thắng riêng ngay; sai bị loại. Dân thường thắng khi hết gián điệp/mũ trắng, kể cả dân thường đã chết; gián điệp thắng khi bằng/vượt tổng người sống khác sau quyền đoán cuối. Chỉ còn mũ trắng được đoán 30 giây, không ai đúng thì dân thường thắng.
 
-Both game types are RAM-only: restarting the API removes rooms and matches.
+All game types are RAM-only: restarting the API removes rooms and matches. Mũ Trắng khóa roster/config trong ván; người bị loại chỉ xem, rời phòng là bỏ cuộc. Chuyển quản trò giữa các ván xóa bộ từ chuẩn bị. Từ riêng tự che khi mất focus/kết nối; chỉ quản trò nhận bộ từ và role đầy đủ. Deploy cả API và Web khi thêm game này, không cần migration hoặc biến môi trường mới.
+
+Mũ Trắng có giao diện **Secret Party** riêng: nền sáng xanh cobalt/coral, mascot mũ trắng, 12 avatar nhân vật trung tính, board chọn vote, tiến trình vòng và hiệu ứng chiến thắng. Avatar không liên quan đến role. Font tiếng Việt và ảnh được lưu cục bộ trong `apps/web/public/white-hat`; ảnh dùng tối ưu hóa của Next Image. Điện thoại có thanh gửi phiếu cố định, vẫn hỗ trợ bàn phím và giảm chuyển động; reconnect không phát lại ăn mừng cũ. Theme chỉ áp dụng cho Mũ Trắng.
 
 ## Chat và thao tác bài
 

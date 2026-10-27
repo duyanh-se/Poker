@@ -8,7 +8,7 @@ export function Entry({
   pending: boolean;
 }) {
   const [mode, setMode] = useState<'join' | 'create'>('join');
-  const [gameType, setGameType] = useState<'poker' | 'liars-deck'>('poker');
+  const [gameType, setGameType] = useState<'poker' | 'liars-deck' | 'white-hat'>('poker');
   const [error, setError] = useState('');
   async function handle(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,7 +24,9 @@ export function Entry({
                   bigBlind: Number(values.get('bigBlind')),
                   ante: Number(values.get('ante')),
                 }
-              : { startingLives: Number(values.get('startingLives')) }),
+              : gameType === 'liars-deck'
+                ? { startingLives: Number(values.get('startingLives')) }
+                : { eliminationsPerRound: Number(values.get('eliminationsPerRound')) }),
           }
         : {
             displayName: values.get('name'),
@@ -76,9 +78,11 @@ export function Entry({
         <p className="muted">
           {mode === 'join'
             ? 'Nhập lời mời từ chủ phòng để cùng chơi.'
-            : gameType === 'liars-deck'
-              ? 'Bài nói dối · 2–4 người. Chọn số mạng; bạn xác nhận từng vòng.'
-              : 'Chọn blind một lần. Mỗi ván do bạn bắt đầu.'}
+            : gameType === 'white-hat'
+              ? 'Mũ Trắng · 4–12 người chơi và 1 quản trò. Bạn điều hành và nhập hai từ trong phòng.'
+              : gameType === 'liars-deck'
+                ? 'Bài nói dối · 2–4 người. Chọn số mạng; bạn xác nhận từng vòng.'
+                : 'Chọn blind một lần. Mỗi ván do bạn bắt đầu.'}
         </p>
         <form onSubmit={handle}>
           <label>
@@ -126,6 +130,14 @@ export function Entry({
                   <b>🂠 Bài nói dối</b>
                   <small>Bluff · Tố cáo · Mất mạng</small>
                 </button>
+                <button
+                  type="button"
+                  aria-pressed={gameType === 'white-hat'}
+                  onClick={() => setGameType('white-hat')}
+                >
+                  <b>Mũ Trắng</b>
+                  <small>Mô tả · Suy luận · Đoán từ</small>
+                </button>
               </div>
               {gameType === 'poker' ? (
                 <>
@@ -161,7 +173,7 @@ export function Entry({
                     <small>Mỗi người đóng thêm đầu ván; 0 để tắt.</small>
                   </label>
                 </>
-              ) : (
+              ) : gameType === 'liars-deck' ? (
                 <label>
                   Số mạng ban đầu
                   <input
@@ -175,6 +187,23 @@ export function Entry({
                   />
                   <small>
                     Mỗi người bắt đầu cùng số mạng. Bị tố sai hoặc hết giờ sẽ mất 1 mạng.
+                  </small>
+                </label>
+              ) : (
+                <label>
+                  Số người bị loại mỗi vòng
+                  <input
+                    name="eliminationsPerRound"
+                    type="number"
+                    required
+                    min={1}
+                    max={11}
+                    step={1}
+                    defaultValue={1}
+                  />
+                  <small>
+                    Bạn là quản trò, không được chia role hoặc bỏ phiếu. Có thể chỉnh cấu hình trước
+                    ván.
                   </small>
                 </label>
               )}

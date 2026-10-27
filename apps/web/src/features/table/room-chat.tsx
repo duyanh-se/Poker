@@ -90,10 +90,12 @@ export function RoomChat({
   chat,
   connected,
   yourTurn,
+  readOnly = false,
 }: {
   chat?: RoomChatState;
   connected: boolean;
   yourTurn: boolean;
+  readOnly?: boolean;
 }) {
   const [draft, setDraft] = useState('');
   const [collapsed, setCollapsed] = useState(false);
@@ -119,7 +121,7 @@ export function RoomChat({
       const left = window.innerWidth - 292;
       const bottom = top + aside.getBoundingClientRect().height;
       const obstacles = shell.querySelectorAll(
-        '.seat, .liar-seat, .liar-center, .liar-viewer-seat, .play-dock, .liar-controls, .board-accessible',
+        '.seat, .liar-seat, .liar-center, .liar-viewer-seat, .play-dock, .liar-controls, .board-accessible, .white-controls, .white-player',
       );
       const blocked = [...obstacles].some((element) => {
         const rect = element.getBoundingClientRect();
@@ -218,16 +220,28 @@ export function RoomChat({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             maxLength={600}
-            disabled={chat.pending}
+            disabled={chat.pending || readOnly}
           />
         </label>
         <small>{[...draft.trim()].length}/300</small>
         <p role="status">
           {chat.error ||
-            (!connected ? 'Mất kết nối. Chưa thể gửi tin.' : chat.pending ? 'Đang gửi…' : '')}
+            (readOnly
+              ? 'Bạn chỉ được xem chat trong ván này.'
+              : !connected
+                ? 'Mất kết nối. Chưa thể gửi tin.'
+                : chat.pending
+                  ? 'Đang gửi…'
+                  : '')}
         </p>
         <button
-          disabled={!connected || chat.pending || !draft.trim() || [...draft.trim()].length > 300}
+          disabled={
+            readOnly ||
+            !connected ||
+            chat.pending ||
+            !draft.trim() ||
+            [...draft.trim()].length > 300
+          }
         >
           Gửi tin
         </button>

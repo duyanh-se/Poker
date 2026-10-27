@@ -181,5 +181,95 @@ export interface LiarsTableSnapshot {
   };
   legalActions?: { canPlay: boolean; canChallenge: boolean; mustChallenge: boolean };
 }
-export type RoomSnapshot = TableSnapshot | LiarsTableSnapshot;
-export type AnyCreateRoomRequest = CreateRoomRequest | CreateLiarsRoomRequest;
+export type WhiteHatRole = 'civilian' | 'spy' | 'white-hat';
+export type WhiteHatStage =
+  | 'lobby'
+  | 'description'
+  | 'discussion'
+  | 'voting'
+  | 'revote'
+  | 'tie-break'
+  | 'last-guess'
+  | 'intermission'
+  | 'finished';
+export interface WhiteHatConfig {
+  eliminationsPerRound: number;
+  roleMode: 'auto' | 'custom';
+  spyCount: number;
+  whiteCount: number;
+}
+export interface WhiteHatSetup extends WhiteHatConfig {
+  civilianWord: string;
+  spyWord: string;
+}
+export interface CreateWhiteHatRoomRequest {
+  gameType: 'white-hat';
+  displayName: string;
+  eliminationsPerRound?: number;
+}
+export interface WhiteHatActionIds {
+  matchId: string;
+  roundId: string;
+  turnId: string;
+}
+export interface WhiteHatBallotResult {
+  roundNumber: number;
+  runoff: boolean;
+  ballots: Array<{ memberId: string; targetIds: string[] }>;
+  totals: Array<{ memberId: string; votes: number }>;
+}
+export interface WhiteHatSnapshot {
+  gameType: 'white-hat';
+  version: number;
+  serverTime: number;
+  transition?: GameTransition;
+  roomCode: string;
+  phase: 'waiting' | 'running' | 'closed';
+  stage: WhiteHatStage;
+  config: WhiteHatConfig;
+  viewerMemberId: string;
+  hostMemberId: string;
+  matchStatus: 'waiting' | 'active' | 'finished';
+  matchId?: string;
+  roundId?: string;
+  turnId?: string;
+  roundNumber: number;
+  actingMemberId?: string;
+  deadlineAt?: number;
+  players: Array<{
+    memberId: string;
+    displayName: string;
+    seat: number;
+    connected: boolean;
+    isHost: boolean;
+    isModerator: boolean;
+    eliminated: boolean;
+    departed: boolean;
+    role?: WhiteHatRole;
+  }>;
+  /** Present only for the participating recipient, never their role. */
+  privateWord?: string | null;
+  moderator?: WhiteHatSetup & { roles: Array<{ memberId: string; role: WhiteHatRole }> };
+  descriptions: Array<{ roundNumber: number; memberId: string; text: string | null }>;
+  guesses: Array<{ memberId: string; text: string; correct: boolean }>;
+  ballotResults: WhiteHatBallotResult[];
+  submittedMemberIds: string[];
+  ownBallot?: string[];
+  candidateIds: string[];
+  ballotSize: number;
+  selectedIds: string[];
+  lastEliminatedIds: string[];
+  notice?: string;
+  legalActions: { canDescribe: boolean; canVote: boolean; canGuess: boolean; canChat: boolean };
+  result?: {
+    winner: WhiteHatRole;
+    winnerMemberIds: string[];
+    civilianWord: string;
+    spyWord: string;
+  };
+}
+export type RoomSnapshot = TableSnapshot | LiarsTableSnapshot | WhiteHatSnapshot;
+export type AnyCreateRoomRequest =
+  | CreateRoomRequest
+  | CreateLiarsRoomRequest
+  | CreateWhiteHatRoomRequest;

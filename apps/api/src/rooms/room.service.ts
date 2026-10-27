@@ -4,21 +4,24 @@ import { LiarsRoomService } from '../liars-deck/liars-room.service';
 import { PokerRoomService, type PokerTableSnapshot } from './poker-room.service';
 import { RoomError } from './room-error';
 import { RoomChat } from './room-chat';
+import { WhiteHatRoomService } from '../white-hat/white-hat-room.service';
+import type { WhiteHatActionIds, WhiteHatSetup } from '@poker/contracts';
 
 export { RoomError } from './room-error';
 
 type CreateRoom = {
   displayName: string;
-  gameType?: 'poker' | 'liars-deck';
+  gameType?: 'poker' | 'liars-deck' | 'white-hat';
   smallBlind?: number;
   bigBlind?: number;
   ante?: number;
   startingLives?: number;
+  eliminationsPerRound?: number;
 };
 
 type JoinRoom = { roomCode: string; password: string; displayName: string };
 
-/** Owns the two in-memory engines for the lifetime of this Nest singleton. */
+/** Owns the in-memory game services for the lifetime of this Nest singleton. */
 @Injectable()
 export class RoomService {
   private readonly chat = new RoomChat();
@@ -30,6 +33,11 @@ export class RoomService {
 
   sendChat(sessionId: string, commandId: unknown, text: unknown) {
     const snapshot = this.current(sessionId);
+    if (
+      this.whiteHat.hasSession(sessionId) &&
+      !this.whiteHat.current(sessionId).legalActions.canChat
+    )
+      throw new RoomError('FORBIDDEN', 'Người bị loại chỉ được xem trong ván này.');
     const member = snapshot.players.find((p) => p.memberId === snapshot.viewerMemberId);
     if (!member || member.departing)
       throw new RoomError('NOT_MEMBER', 'Bạn không còn trong phòng.');
@@ -46,6 +54,11 @@ export class RoomService {
   }
   private readonly poker = new PokerRoomService();
   private readonly liars = new LiarsRoomService();
+  private readonly whiteHat = new WhiteHatRoomService();
+
+  isWhiteHatSession(sessionId: string): boolean {
+    return this.whiteHat.hasSession(sessionId);
+  }
 
   create(request: CreateRoom): {
     roomCode: string;
@@ -53,14 +66,32 @@ export class RoomService {
     sessionId: string;
     snapshot: PokerTableSnapshot;
   } {
+    if (request.gameType === 'white-hat') {
+      if (
+        [request.smallBlind, request.bigBlind, request.ante, request.startingLives].some(
+          (v) => v !== undefined,
+        )
+      )
+        throw new RoomError('INVALID_CONFIG', 'Mũ Trắng không dùng cấu hình bài hoặc chip.');
+      return this.whiteHat.create(
+        request,
+        (code) => this.poker.hasRoom(code) || this.liars.hasRoom(code),
+      ) as never;
+    }
+    if (request.eliminationsPerRound !== undefined)
+      throw new RoomError('INVALID_CONFIG', 'Chỉ Mũ Trắng dùng cấu hình số người bị loại.');
     if (request.gameType === 'liars-deck')
-      return this.liars.create(request, (code) => this.poker.hasRoom(code)) as never;
+      return this.liars.create(
+        request,
+        (code) => this.poker.hasRoom(code) || this.whiteHat.hasRoom(code),
+      ) as never;
     if (request.gameType && request.gameType !== 'poker')
       throw new RoomError('INVALID_CONFIG', 'Loại game không hợp lệ.');
     if (request.startingLives !== undefined)
       throw new RoomError('INVALID_CONFIG', 'Poker không dùng cấu hình số mạng.');
     return this.poker.create(
       request as { displayName: string; smallBlind: number; bigBlind: number; ante: number },
+      (code) => this.liars.hasRoom(code) || this.whiteHat.hasRoom(code),
     );
   }
 
@@ -116,6 +147,23 @@ export class RoomService {
     return this.bySession(sessionId).start(sessionId) as never;
   }
 
+  configureWhiteHat(sessionId: string, setup: WhiteHatSetup): PokerTableSnapshot {
+    return this.whiteHatOnly(sessionId).configure(sessionId, setup) as never;
+  }
+  whiteHatAction(
+    sessionId: string,
+    action: 'describe' | 'vote' | 'guess' | 'advance' | 'resolve-tie',
+    ids: WhiteHatActionIds,
+    value?: unknown,
+  ): PokerTableSnapshot {
+    const service = this.whiteHatOnly(sessionId);
+    if (action === 'advance') return service.advance(sessionId, ids) as never;
+    if (action === 'resolve-tie') return service.resolveTie(sessionId, ids, value) as never;
+    if (action === 'vote') return service.vote(sessionId, ids, value) as never;
+    if (action === 'guess') return service.guess(sessionId, ids, value) as never;
+    return service.describe(sessionId, ids, value) as never;
+  }
+
   returnToTable(sessionId: string): PokerTableSnapshot {
     return this.bySession(sessionId).returnToTable(sessionId) as never;
   }
@@ -167,15 +215,17 @@ export class RoomService {
     return this.liarsOnly(sessionId).challenge(sessionId, matchId, roundId, turnId) as never;
   }
 
-  private byRoom(roomCode: string): PokerRoomService | LiarsRoomService {
+  private byRoom(roomCode: string): PokerRoomService | LiarsRoomService | WhiteHatRoomService {
     if (this.poker.hasRoom(roomCode)) return this.poker;
     if (this.liars.hasRoom(roomCode)) return this.liars;
+    if (this.whiteHat.hasRoom(roomCode)) return this.whiteHat;
     throw new RoomError('ROOM_NOT_FOUND', 'Phòng không còn tồn tại.');
   }
 
-  private bySession(sessionId: string): PokerRoomService | LiarsRoomService {
+  private bySession(sessionId: string): PokerRoomService | LiarsRoomService | WhiteHatRoomService {
     if (this.poker.hasSession(sessionId)) return this.poker;
     if (this.liars.hasSession(sessionId)) return this.liars;
+    if (this.whiteHat.hasSession(sessionId)) return this.whiteHat;
     throw new RoomError('NO_SESSION', 'Phiên chơi không còn tồn tại.');
   }
 
@@ -191,5 +241,10 @@ export class RoomService {
     if (!(service instanceof LiarsRoomService))
       throw new RoomError('WRONG_GAME', 'Lệnh này chỉ dùng cho Bài nói dối.');
     return service;
+  }
+  private whiteHatOnly(sessionId: string): WhiteHatRoomService {
+    if (!this.whiteHat.hasSession(sessionId))
+      throw new RoomError('WRONG_GAME', 'Lệnh chỉ dùng cho Mũ Trắng.');
+    return this.whiteHat;
   }
 }

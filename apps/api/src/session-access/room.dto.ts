@@ -12,10 +12,10 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateRoomDto {
-  @ApiProperty({ enum: ['poker', 'liars-deck'], default: 'poker', required: false })
+  @ApiProperty({ enum: ['poker', 'liars-deck', 'white-hat'], default: 'poker', required: false })
   @IsOptional()
-  @IsIn(['poker', 'liars-deck'])
-  gameType?: 'poker' | 'liars-deck';
+  @IsIn(['poker', 'liars-deck', 'white-hat'])
+  gameType?: 'poker' | 'liars-deck' | 'white-hat';
   @ApiProperty({ type: String, example: 'Chủ phòng', minLength: 1, maxLength: 24 })
   @IsString()
   @IsNotEmpty()
@@ -50,6 +50,21 @@ export class CreateRoomDto {
   @Min(1)
   @Max(10)
   startingLives?: number;
+
+  @ApiProperty({
+    type: Number,
+    default: 1,
+    minimum: 1,
+    maximum: 11,
+    required: false,
+    description: 'Mũ Trắng: number eliminated per round; revalidated against roster at start.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(11)
+  eliminationsPerRound?: number;
 }
 
 export class JoinRoomDto {

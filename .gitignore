@@ -9,3 +9,5 @@ test-results/
 .env.local
 .env.*.local
 *.md
+!openspec/changes/add-white-hat-game/**/*.md
+!openspec/changes/redesign-white-hat-secret-party/**/*.md

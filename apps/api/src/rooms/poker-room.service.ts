@@ -118,7 +118,10 @@ export class PokerRoomService {
     return this.sessions.has(id);
   }
 
-  create(request: CreateRoomRequest): {
+  create(
+    request: CreateRoomRequest,
+    taken: (code: string) => boolean = () => false,
+  ): {
     roomCode: string;
     password: string;
     sessionId: string;
@@ -126,7 +129,7 @@ export class PokerRoomService {
   } {
     this.validateConfig(request);
     const member = this.newMember(request.displayName, 0);
-    const code = this.uniqueCode();
+    const code = this.uniqueCode(taken);
     const password = randomBytes(12).toString('base64url');
     const room: Room = {
       code,
@@ -601,11 +604,11 @@ export class PokerRoomService {
     };
   }
 
-  private uniqueCode(): string {
+  private uniqueCode(taken: (code: string) => boolean): string {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
     do code = Array.from({ length: 8 }, () => alphabet[randomInt(alphabet.length)]).join('');
-    while (this.rooms.has(code));
+    while (this.rooms.has(code) || taken(code));
     return code;
   }
 
