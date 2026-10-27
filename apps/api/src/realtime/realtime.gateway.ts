@@ -12,6 +12,7 @@ import type { Namespace, Socket } from 'socket.io';
 import { loadAppConfig } from '../config/app-config';
 import { RoomError, RoomService } from '../rooms/room.service';
 import type { GameTransition } from '../rooms/game-pacing';
+import type { WhiteHatActionIds, WhiteHatSetup } from '@poker/contracts';
 
 const gatewayConfig = loadAppConfig();
 
@@ -144,6 +145,61 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() body: { commandId: string },
   ): { ok: boolean; code?: string } {
     return this.mutate(socket, body?.commandId, () => this.rooms.start(socket.data.sessionId));
+  }
+
+  @SubscribeMessage('white-hat:configure')
+  configureWhiteHat(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { commandId: string; setup: WhiteHatSetup },
+  ) {
+    return this.mutate(socket, body?.commandId, () =>
+      this.rooms.configureWhiteHat(socket.data.sessionId, body.setup),
+    );
+  }
+  @SubscribeMessage('white-hat:describe')
+  describeWhiteHat(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: WhiteHatActionIds & { commandId: string; text: unknown },
+  ) {
+    return this.mutate(socket, body?.commandId, () =>
+      this.rooms.whiteHatAction(socket.data.sessionId, 'describe', body, body.text),
+    );
+  }
+  @SubscribeMessage('white-hat:vote')
+  voteWhiteHat(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: WhiteHatActionIds & { commandId: string; targetIds: unknown },
+  ) {
+    return this.mutate(socket, body?.commandId, () =>
+      this.rooms.whiteHatAction(socket.data.sessionId, 'vote', body, body.targetIds),
+    );
+  }
+  @SubscribeMessage('white-hat:guess')
+  guessWhiteHat(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: WhiteHatActionIds & { commandId: string; text: unknown },
+  ) {
+    return this.mutate(socket, body?.commandId, () =>
+      this.rooms.whiteHatAction(socket.data.sessionId, 'guess', body, body.text),
+    );
+  }
+  @SubscribeMessage('white-hat:advance')
+  advanceWhiteHat(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: WhiteHatActionIds & { commandId: string },
+  ) {
+    return this.mutate(socket, body?.commandId, () =>
+      this.rooms.whiteHatAction(socket.data.sessionId, 'advance', body),
+    );
+  }
+  @SubscribeMessage('white-hat:resolve-tie')
+  tieWhiteHat(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: WhiteHatActionIds & { commandId: string; targetIds: unknown },
+  ) {
+    return this.mutate(socket, body?.commandId, () =>
+      this.rooms.whiteHatAction(socket.data.sessionId, 'resolve-tie', body, body.targetIds),
+    );
   }
 
   @SubscribeMessage('game:action')
@@ -286,8 +342,19 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     },
   ): { ok: boolean; code?: string } {
     try {
-      if (!commandId || !socket.data.sessionId)
+      if (
+        typeof commandId !== 'string' ||
+        !commandId ||
+        commandId.length > 128 ||
+        !socket.data.sessionId
+      )
         throw new RoomError('INVALID_COMMAND', 'Lệnh không hợp lệ.');
+      const session = this.rooms.session(socket.data.sessionId);
+      if (
+        this.rooms.isWhiteHatSession(socket.data.sessionId) &&
+        this.activeSockets.get(`${session.roomCode}:${session.memberId}`) !== socket.id
+      )
+        throw new RoomError('NO_SESSION', 'Kết nối không còn quyền điều khiển.');
       const seen = this.processedCommands.get(socket.data.sessionId) ?? new Set<string>();
       if (seen.has(commandId)) return { ok: true };
       const snapshot = mutation();

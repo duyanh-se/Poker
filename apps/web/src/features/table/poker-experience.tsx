@@ -7,6 +7,7 @@ import { ActionEffect } from './action-effect';
 import { canRenderHand, isHandVisible, isPublicHand } from './card-visibility';
 import { Entry } from './entry';
 import { LiarsTable } from '../liars/liars-table';
+import { WhiteHatTable } from '../white-hat/white-hat-table';
 import { Panel } from './panel';
 import { PrivateCardControl } from './private-card-control';
 import { RoomChat } from './room-chat';
@@ -73,7 +74,7 @@ export function PokerExperience() {
   const [handDetails, setHandDetails] = useState(false);
   const session = useTableSession();
   const { table: roomTable, loading, connection, pending, message, invite, animate } = session;
-  const table = roomTable?.gameType === 'liars-deck' ? undefined : roomTable;
+  const table = roomTable?.gameType === 'poker' ? roomTable : undefined;
   const pacing = useGamePacing(table, animate);
   const hidden = useTableStore((s) => s.hidePrivateCards);
   const showAllHoleCards = useTableStore((s) => s.showAllHoleCards);
@@ -124,6 +125,16 @@ export function PokerExperience() {
         <h1>Đang khôi phục bàn…</h1>
         <p className="muted">Kết nối lại với buổi chơi của bạn.</p>
       </main>
+    );
+  if (roomTable?.gameType === 'white-hat')
+    return (
+      <WhiteHatTable
+        key={roomTable.roomCode}
+        {...session}
+        table={roomTable}
+        hidden={hidden}
+        setHidden={hide}
+      />
     );
   if (roomTable?.gameType === 'liars-deck')
     return (

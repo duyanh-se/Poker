@@ -44,7 +44,18 @@ export const useTableStore = create<TableStore>((set) => ({
         state.table.viewerMemberId === snapshot.viewerMemberId &&
         state.table.handId === snapshot.handId &&
         state.table.canViewAllHoleCards === snapshot.canViewAllHoleCards;
-      return { table: snapshot, showAllHoleCards: sameScope && state.showAllHoleCards };
+      const whiteHatScopeChanged =
+        snapshot.gameType === 'white-hat' &&
+        (state.table?.gameType !== 'white-hat' ||
+          state.table.roomCode !== snapshot.roomCode ||
+          state.table.viewerMemberId !== snapshot.viewerMemberId ||
+          state.table.matchId !== snapshot.matchId ||
+          state.table.hostMemberId !== snapshot.hostMemberId);
+      return {
+        table: snapshot,
+        showAllHoleCards: sameScope && state.showAllHoleCards,
+        hidePrivateCards: whiteHatScopeChanged ? true : state.hidePrivateCards,
+      };
     }),
   clear: () => set({ table: undefined, hidePrivateCards: true, showAllHoleCards: false }),
   setPrivateCardsHidden: (hidePrivateCards) =>

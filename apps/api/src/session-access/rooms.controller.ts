@@ -39,7 +39,7 @@ export class RoomsController {
   constructor(@Inject(RoomService) private readonly rooms: RoomService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a private Poker or Bài nói dối room' })
+  @ApiOperation({ summary: 'Create a private Poker, Bài nói dối or Mũ Trắng room' })
   @ApiBody({ type: CreateRoomDto })
   @ApiCreatedResponse({
     description: 'Returns the room invitation once and starts a guest session.',
@@ -61,7 +61,7 @@ export class RoomsController {
 
   @Post('join')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Join a private poker room' })
+  @ApiOperation({ summary: 'Join a private game room' })
   @ApiBody({ type: JoinRoomDto })
   @ApiOkResponse({ description: 'Starts a guest session for the invited member.' })
   join(@Body() body: JoinRoomDto, @Res({ passthrough: true }) response: ResponseLike) {

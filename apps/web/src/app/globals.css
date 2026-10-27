@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '../features/liars/liars.css';
+@import '../features/white-hat/white-hat.css';
 .seat.winner {
   border-color: #e6be77;
   background: linear-gradient(#47402b, #19251f);
@@ -235,6 +236,9 @@ input[type='range'] {
   min-height: 82px;
   text-align: left;
   background: #162126;
+}
+.game-choice button:nth-child(3) {
+  grid-column: 1 / -1;
 }
 .game-choice button[aria-pressed='true'] {
   border-color: var(--gold);
