@@ -7,6 +7,8 @@ import { useGamePacing } from '../table/pacing';
 import { Actions, Moderator, Rules, Setup } from './white-hat-controls';
 import {
   Avatar,
+  avatarPosition,
+  actionIds,
   History,
   Mascot,
   memberName,
@@ -40,7 +42,12 @@ export function WhiteHatTable(props: Props) {
     chat,
     animate = false,
   } = props;
-  const [panel, setPanel] = useState<'invite' | 'help' | 'manage' | null>(null);
+  const [panel, setPanel] = useState<
+    'invite' | 'help' | 'manage' | 'chat' | 'history' | 'avatar' | 'end' | null
+  >(null);
+  const [draft, setDraft] = useState('');
+  const [avatarChoice, setAvatarChoice] = useState(0);
+  const [endTarget, setEndTarget] = useState<ReturnType<typeof actionIds>>();
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selection, setSelection] = useState<{ turnId?: string; ids: string[] }>({ ids: [] });
@@ -134,6 +141,18 @@ export function WhiteHatTable(props: Props) {
           <nav aria-label="Menu phòng">
             <button
               onClick={() => {
+                setAvatarChoice(Math.max(0, avatarPosition(table, table.viewerMemberId)));
+                setPanel('avatar');
+              }}
+            >
+              Nhân vật
+            </button>
+            <button onClick={() => setPanel('chat')}>
+              Chat{chat?.unread ? ` (${chat.unread})` : ''}
+            </button>
+            <button onClick={() => setPanel('history')}>Lịch sử</button>
+            <button
+              onClick={() => {
                 setShowPassword(false);
                 setPanel('invite');
               }}
@@ -153,7 +172,6 @@ export function WhiteHatTable(props: Props) {
           </div>
         )}
         <Progress table={table} />
-        {table.result && <Victory table={table} animate={animate} />}
         <div className="wh-layout">
           <section className="wh-playboard" aria-label="Người chơi">
             <header className="wh-stage-heading">
@@ -173,41 +191,8 @@ export function WhiteHatTable(props: Props) {
                         : 'Một lời mô tả cũng có thể thay đổi cả cuộc chơi.'}
                 </p>
               </div>
-              {seconds !== undefined && (
-                <div
-                  className="wh-clock"
-                  data-urgent={seconds <= 10}
-                  role="timer"
-                  aria-label="Thời gian còn lại"
-                  style={
-                    {
-                      '--wh-clock-progress': `${Math.min(1, seconds / (table.stage === 'last-guess' ? 30 : 60)) * 100}%`,
-                    } as CSSProperties
-                  }
-                >
-                  <span aria-hidden="true">◷</span>
-                  <strong>
-                    {seconds}
-                    <small>s</small>
-                  </strong>
-                </div>
-              )}
+              <span className="wh-desktop-status wh-counter">{statusText}</span>
             </header>
-            {!active && !table.result && (
-              <div className="wh-lobby-banner">
-                <div>
-                  <span className="wh-kicker">CẢ HỘI CÙNG VÀO CUỘC</span>
-                  <h3>
-                    Giữ bí mật nhé.
-                    <br />
-                    Cả hội cùng suy luận!
-                  </h3>
-                  <p>4–12 người chơi · 1 quản trò</p>
-                  {!host && <span className="wh-wait-chip">Chờ quản trò bắt đầu</span>}
-                </div>
-                <Mascot priority />
-              </div>
-            )}
             {table.notice && <p className="wh-notice">{table.notice}</p>}
             <div className="wh-board-bar">
               <h3>
@@ -236,7 +221,89 @@ export function WhiteHatTable(props: Props) {
               <legend className="wh-sr-only">
                 {voting ? 'Chọn người bị nghi ngờ' : 'Đội hình'}
               </legend>
-              {boardPlayers.map((p) => {
+              <aside className="wh-sidebar" aria-label={host ? 'Điều hành' : 'Thao tác của bạn'}>
+                <div className="wh-decision-status">
+                  {seconds !== undefined && (
+                    <div
+                      className="wh-clock"
+                      data-urgent={seconds <= 10}
+                      role="timer"
+                      aria-label="Thời gian còn lại"
+                      style={
+                        {
+                          '--wh-clock-progress': `${Math.min(1, seconds / (table.stage === 'last-guess' ? 30 : 60)) * 100}%`,
+                        } as CSSProperties
+                      }
+                    >
+                      <span aria-hidden="true">◷</span>
+                      <strong>
+                        {seconds}
+                        <small>s</small>
+                      </strong>
+                    </div>
+                  )}
+                  {active && (
+                    <PrivateWord
+                      table={table}
+                      visible={secretVisible}
+                      toggle={() => setHidden(!hidden)}
+                    />
+                  )}
+                </div>
+                {table.result && <Victory table={table} animate={animate} />}
+                {!active && host && (
+                  <Setup
+                    key={`${table.matchId ?? 'new'}:${table.hostMemberId}`}
+                    table={table}
+                    locked={locked}
+                    send={send}
+                  />
+                )}
+                {!active && !host && !table.result && (
+                  <section className="wh-lobby-banner">
+                    <Mascot priority />
+                    <h2>Giữ bí mật nhé!</h2>
+                    <p>Chờ quản trò bắt đầu · 4–12 người chơi</p>
+                  </section>
+                )}
+                {active && host && (
+                  <Moderator
+                    table={table}
+                    visible={secretVisible}
+                    toggle={() => setHidden(!hidden)}
+                    locked={locked}
+                    send={send}
+                  />
+                )}
+                {active && (
+                  <Actions
+                    key={table.turnId}
+                    table={table}
+                    selected={selected}
+                    locked={locked}
+                    send={send}
+                    message={message}
+                  />
+                )}
+                {!host && !table.legalActions.canChat && active && (
+                  <p className="wh-notice wh-view-only">
+                    Bạn đã bị loại và chỉ được xem diễn biến.
+                  </p>
+                )}
+                {host && active && (
+                  <button
+                    className="wh-quiet wh-end-match"
+                    disabled={locked}
+                    onClick={() => {
+                      setEndTarget(actionIds(table));
+                      setPanel('end');
+                    }}
+                  >
+                    Kết thúc ván
+                  </button>
+                )}
+              </aside>
+              {boardPlayers.map((p, index) => {
                 const eligible =
                   canChoose &&
                   table.candidateIds.includes(p.memberId) &&
@@ -244,15 +311,22 @@ export function WhiteHatTable(props: Props) {
                 const marked =
                   selected.includes(p.memberId) ||
                   Boolean(table.ownBallot?.includes(p.memberId) && voting);
-                const clue = table.descriptions.find(
-                  (d) => d.roundNumber === table.roundNumber && d.memberId === p.memberId,
-                );
+                const clues = table.descriptions.filter((d) => d.memberId === p.memberId);
+                const clue = clues.findLast((d) => d.text !== null) ?? clues.at(-1);
+                const split = Math.ceil(boardPlayers.length / 2);
+                const local = index < split ? index : index - split;
                 const submitted = voting && table.submittedMemberIds.includes(p.memberId);
                 return (
                   <article
                     key={p.memberId}
                     className={`wh-player ${marked ? 'is-selected' : ''} ${p.eliminated || p.departed ? 'is-out' : ''} ${table.actingMemberId === p.memberId ? 'is-acting' : ''} ${eligible ? 'is-choosable' : ''}`}
                     data-member={p.memberId}
+                    style={
+                      {
+                        '--wh-column': (local % 2) + (index < split ? 1 : 4),
+                        '--wh-row': Math.floor(local / 2) + (split <= 2 ? 2 : 1),
+                      } as CSSProperties
+                    }
                   >
                     {eligible && (
                       <input
@@ -267,12 +341,7 @@ export function WhiteHatTable(props: Props) {
                       />
                     )}
                     <div className="wh-player-art">
-                      <Avatar
-                        identity={p.memberId}
-                        position={participants.findIndex(
-                          (person) => person.memberId === p.memberId,
-                        )}
-                      />
+                      <Avatar identity={p.memberId} position={avatarPosition(table, p.memberId)} />
                       {marked && (
                         <span className="wh-choice-stamp" aria-hidden="true">
                           ✓
@@ -300,9 +369,12 @@ export function WhiteHatTable(props: Props) {
                       </small>
                       {p.role && <span className="wh-role">{roleNames[p.role]}</span>}
                     </div>
-                    {clue && !voting && active && (
-                      <p className="wh-player-clue">{clue.text ?? 'Đã bỏ lượt'}</p>
-                    )}
+                    <p className={`wh-player-clue ${clue?.text ? '' : 'is-empty'}`}>
+                      {clue && clue.roundNumber !== table.roundNumber && (
+                        <small>Vòng {clue.roundNumber} · </small>
+                      )}
+                      {clue ? (clue.text ?? 'Đã bỏ lượt') : 'Chưa có mô tả'}
+                    </p>
                   </article>
                 );
               })}
@@ -327,46 +399,24 @@ export function WhiteHatTable(props: Props) {
                 <strong>{table.lastEliminatedIds.map(names).join(', ')}</strong>
               </p>
             )}
-            <History key={table.matchId ?? 'lobby'} table={table} />
           </section>
-          <aside className="wh-sidebar" aria-label={host ? 'Điều hành' : 'Thao tác của bạn'}>
-            {!active && host && (
-              <Setup
-                key={`${table.matchId ?? 'new'}:${table.hostMemberId}`}
-                table={table}
-                locked={locked}
-                send={send}
-              />
-            )}
-            {active && host && (
-              <Moderator
-                table={table}
-                visible={secretVisible}
-                toggle={() => setHidden(!hidden)}
-                locked={locked}
-                send={send}
-              />
-            )}
-            <PrivateWord table={table} visible={secretVisible} toggle={() => setHidden(!hidden)} />
-            {active && (
-              <Actions
-                key={table.turnId}
-                table={table}
-                selected={selected}
-                locked={locked}
-                send={send}
-              />
-            )}
-            {!host && !table.legalActions.canChat && active && (
-              <p className="wh-notice wh-view-only">Bạn đã bị loại và chỉ được xem diễn biến.</p>
-            )}
-            <WhiteChat chat={chat} table={table} connected={connection === 'connected'} />
-          </aside>
         </div>
         {panel && (
           <Panel
             title={
-              panel === 'invite' ? 'Lời mời' : panel === 'help' ? 'Luật Mũ Trắng' : 'Quản lý phòng'
+              panel === 'invite'
+                ? 'Lời mời'
+                : panel === 'help'
+                  ? 'Luật Mũ Trắng'
+                  : panel === 'chat'
+                    ? 'Chat phòng'
+                    : panel === 'history'
+                      ? 'Lịch sử ván'
+                      : panel === 'avatar'
+                        ? 'Chọn nhân vật'
+                        : panel === 'end'
+                          ? 'Kết thúc ván sớm'
+                          : 'Quản lý phòng'
             }
             close={() => setPanel(null)}
             yourTurn={table.legalActions.canDescribe}
@@ -396,6 +446,76 @@ export function WhiteHatTable(props: Props) {
               </div>
             ) : panel === 'help' ? (
               <Rules />
+            ) : panel === 'chat' ? (
+              <WhiteChat
+                chat={chat}
+                table={table}
+                connected={connection === 'connected'}
+                draft={draft}
+                setDraft={setDraft}
+              />
+            ) : panel === 'history' ? (
+              <History key={table.matchId ?? 'lobby'} table={table} />
+            ) : panel === 'avatar' ? (
+              <>
+                <p>Chọn nhân vật của bạn. Cả nhóm sẽ thấy lựa chọn này.</p>
+                <div className="wh-avatar-picker" role="group" aria-label="Nhân vật của bạn">
+                  {Array.from({ length: 12 }, (_, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      className="wh-avatar-option"
+                      aria-label={`Nhân vật ${index + 1}`}
+                      aria-pressed={avatarChoice === index}
+                      disabled={locked}
+                      onClick={() => setAvatarChoice(index)}
+                    >
+                      <Avatar identity={String(index)} position={index} />
+                      <span>
+                        {avatarChoice === index ? '✓ ' : ''}
+                        {index + 1}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="wh-primary wh-full"
+                  disabled={locked}
+                  onClick={() => {
+                    send('white-hat:set-avatar', { avatarId: avatarChoice });
+                    setPanel(null);
+                  }}
+                >
+                  Lưu nhân vật
+                </button>
+              </>
+            ) : panel === 'end' ? (
+              <>
+                <p>
+                  Kết thúc ván ngay, không có phe thắng. Role và hai từ sẽ được công bố. Phòng được
+                  giữ để chuẩn bị ván mới.
+                </p>
+                <button
+                  className="wh-coral wh-full"
+                  disabled={
+                    locked ||
+                    !host ||
+                    !active ||
+                    endTarget?.matchId !== table.matchId ||
+                    endTarget?.roundId !== table.roundId ||
+                    endTarget?.turnId !== table.turnId
+                  }
+                  onClick={() => {
+                    send('white-hat:end-match', { ...endTarget });
+                    setPanel(null);
+                  }}
+                >
+                  Xác nhận kết thúc ván
+                </button>
+                {endTarget?.turnId !== table.turnId && (
+                  <p role="status">Giai đoạn đã thay đổi. Hãy đóng bảng và kiểm tra lại.</p>
+                )}
+              </>
             ) : (
               <>
                 <p>Quản trò chỉ điều hành. Cấu hình và quản lý thành viên chỉ dùng giữa các ván.</p>
@@ -403,7 +523,7 @@ export function WhiteHatTable(props: Props) {
                   !active &&
                   present.map((p) => (
                     <div className="wh-admin-row" key={p.memberId}>
-                      <Avatar identity={p.memberId} />
+                      <Avatar identity={p.memberId} position={avatarPosition(table, p.memberId)} />
                       <strong>{p.displayName}</strong>
                       <button
                         className="wh-secondary"

@@ -9,6 +9,7 @@ type Member = {
   seat: number;
   connected: boolean;
   departed: boolean;
+  avatarId: number;
 };
 type Room = {
   code: string;
@@ -153,6 +154,21 @@ export class WhiteHatRoomService {
   resolveTie(sessionId: string, ids: WhiteHatActionIds, targetIds: unknown) {
     return this.command(sessionId, ids, (engine) => engine.resolveTie(targetIds), true);
   }
+  endMatch(sessionId: string, ids: WhiteHatActionIds) {
+    return this.command(sessionId, ids, (engine) => engine.endMatch(), true, true);
+  }
+  setAvatar(sessionId: string, avatarId: unknown) {
+    const { room, member } = this.actor(sessionId);
+    if (
+      typeof avatarId !== 'number' ||
+      !Number.isInteger(avatarId) ||
+      avatarId < 0 ||
+      avatarId > 11
+    )
+      throw new RoomError('INVALID_AVATAR', 'Chọn một trong 12 nhân vật.');
+    member.avatarId = avatarId;
+    return this.changed(room, member.id);
+  }
   timeout(code: string, roundId: string, turnId: string) {
     const room = this.room(code);
     if (!room.engine?.timeout(roundId, turnId)) return undefined;
@@ -215,11 +231,12 @@ export class WhiteHatRoomService {
     ids: WhiteHatActionIds,
     apply: (engine: WhiteHatEngine, memberId: string) => void,
     hostOnly = false,
+    allowExpired = false,
   ) {
     const { room, member } = this.actor(sessionId);
     if (hostOnly) this.host(room, member);
     if (!room.engine) throw new RoomError('INVALID_STATE', 'Ván chưa bắt đầu.');
-    room.engine.assertCurrent(ids);
+    room.engine.assertCurrent(ids, allowExpired);
     apply(room.engine, member.id);
     return this.changed(room, member.id);
   }
@@ -251,7 +268,14 @@ export class WhiteHatRoomService {
     const displayName = value.normalize('NFKC').trim();
     if (!displayName || [...displayName].length > 24)
       throw new RoomError('INVALID_NAME', 'Tên cần từ 1 đến 24 ký tự.');
-    return { id: whiteHatId(), displayName, seat, connected: false, departed: false };
+    return {
+      id: whiteHatId(),
+      displayName,
+      seat,
+      connected: false,
+      departed: false,
+      avatarId: Math.max(0, seat - 1) % 12,
+    };
   }
   private bind(room: Room, member: Member) {
     const sessionId = whiteHatId();
@@ -287,6 +311,7 @@ export class WhiteHatRoomService {
         memberId: m.id,
         displayName: m.displayName,
         seat: m.seat,
+        avatarId: m.avatarId,
         connected: m.connected,
         isHost: m.id === room.hostId,
         isModerator: m.id === room.hostId,

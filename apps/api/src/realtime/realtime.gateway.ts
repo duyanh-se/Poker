@@ -202,6 +202,25 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     );
   }
 
+  @SubscribeMessage('white-hat:end-match')
+  endWhiteHat(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: WhiteHatActionIds & { commandId: string },
+  ) {
+    return this.mutate(socket, body?.commandId, () =>
+      this.rooms.whiteHatAction(socket.data.sessionId, 'end-match', body),
+    );
+  }
+  @SubscribeMessage('white-hat:set-avatar')
+  setWhiteHatAvatar(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { commandId: string; avatarId: unknown },
+  ) {
+    return this.mutate(socket, body?.commandId, () =>
+      this.rooms.setWhiteHatAvatar(socket.data.sessionId, body.avatarId),
+    );
+  }
+
   @SubscribeMessage('game:action')
   action(
     @ConnectedSocket() socket: Socket,

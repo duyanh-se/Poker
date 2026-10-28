@@ -30,6 +30,7 @@ export const actionIds = (table: WhiteHatSnapshot) => ({
 
 /** Identity-only art: never takes a role, private word, or legal-action permission. */
 export const avatarPosition = (table: WhiteHatSnapshot, id: string) =>
+  table.players.find((p) => p.memberId === id)?.avatarId ??
   table.players.filter((p) => !p.isModerator).findIndex((p) => p.memberId === id);
 export function Avatar({
   identity,
@@ -121,6 +122,7 @@ export function Victory({ table, animate }: { table: WhiteHatSnapshot; animate: 
     if (!resultKey || seenResult.current === resultKey) return;
     seenResult.current = resultKey;
     if (
+      table.result?.winner === null ||
       !animate ||
       document.visibilityState !== 'visible' ||
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -133,9 +135,23 @@ export function Victory({ table, animate }: { table: WhiteHatSnapshot; animate: 
       window.clearTimeout(timer);
       node?.classList.remove('wh-celebrate');
     };
-  }, [resultKey, animate]);
+  }, [resultKey, animate, table.result?.winner]);
   if (!table.result) return null;
   const result = table.result;
+  if (result.winner === null)
+    return (
+      <section className="wh-victory wh-cancelled" role="status" aria-label="Kết quả ván">
+        <div>
+          <span className="wh-kicker">QUẢN TRÒ ĐÃ KẾT THÚC VÁN</span>
+          <h2>Ván kết thúc sớm</h2>
+          <p>Không có phe thắng. Cả nhóm có thể chuẩn bị ván mới.</p>
+          <p>
+            Dân thường: <strong>{result.civilianWord}</strong> · Gián điệp:{' '}
+            <strong>{result.spyWord}</strong>
+          </p>
+        </div>
+      </section>
+    );
   return (
     <section ref={element} className="wh-victory" role="status" aria-label="Kết quả ván">
       <div className="wh-confetti" aria-hidden="true">
@@ -155,7 +171,15 @@ export function Victory({ table, animate }: { table: WhiteHatSnapshot; animate: 
           Dân thường: <strong>{result.civilianWord}</strong> · Gián điệp:{' '}
           <strong>{result.spyWord}</strong>
         </p>
-        <p>Người thắng: {result.winnerMemberIds.map((id) => memberName(table, id)).join(', ')}</p>
+        <p>
+          Người thắng:{' '}
+          {result.winnerMemberIds
+            .slice(0, 2)
+            .map((id) => memberName(table, id))
+            .join(', ')}
+          {result.winnerMemberIds.length > 2 &&
+            ` và ${result.winnerMemberIds.length - 2} người cùng phe`}
+        </p>
       </div>
     </section>
   );
@@ -282,12 +306,15 @@ export function WhiteChat({
   chat,
   table,
   connected,
+  draft,
+  setDraft,
 }: {
   chat?: RoomChatState;
   table: WhiteHatSnapshot;
   connected: boolean;
+  draft: string;
+  setDraft: (value: string) => void;
 }) {
-  const [draft, setDraft] = useState('');
   const [collapsed, setCollapsed] = useState(false);
   const history = useRef<HTMLDivElement>(null);
   const following = useRef(true);

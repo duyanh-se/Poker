@@ -139,9 +139,19 @@ test('Mũ Trắng: private words, full runoff, last guess, reload and small scre
       }
     }
     await expect.poll(async () => (await snapshot(page)).stage).toBe('tie-break');
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.screenshot({ path: test.info().outputPath('tie-break-1280x720.png') });
+    expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(
+      true,
+    );
+    const tieBounds = await page.getByRole('button', { name: 'Chốt người bị loại' }).boundingBox();
+    expect(tieBounds!.y + tieBounds!.height).toBeLessThanOrEqual(720);
     await page.getByRole('checkbox', { name: white.name, exact: true }).check();
     await page.getByRole('button', { name: 'Chốt người bị loại' }).click();
     await expect.poll(async () => (await snapshot(page)).stage).toBe('last-guess');
+    expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(
+      true,
+    );
     const before = await snapshot(white.page);
     expect(before.players.find((p) => p.memberId === whiteId)!.role).toBeUndefined();
     expect(before.legalActions.canChat).toBe(false);
@@ -153,7 +163,10 @@ test('Mũ Trắng: private words, full runoff, last guess, reload and small scre
       path: test.info().outputPath('secret-party-last-guess.png'),
       fullPage: true,
     });
+    await white.page.getByRole('button', { name: 'Chat', exact: true }).click();
     await expect(white.page.getByRole('button', { name: 'Gửi tin', exact: true })).toBeDisabled();
+    await white.page.keyboard.press('Escape');
+    await expect(white.page.getByRole('dialog')).toHaveCount(0);
     await white.page.getByLabel('Đoán từ dân thường').fill('  CÀ   PHÊ  ');
     await white.page.getByRole('button', { name: 'Lộ diện và đoán', exact: true }).click();
     await expect(white.page.getByRole('dialog', { name: 'Xác nhận đoán từ' })).toBeVisible();

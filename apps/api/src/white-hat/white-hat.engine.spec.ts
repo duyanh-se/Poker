@@ -24,7 +24,8 @@ function game(count = 4, changes: Partial<WhiteHatSetup> = {}) {
   );
 }
 function describeAll(engine: WhiteHatEngine) {
-  while (engine.stage === 'description') engine.describe(engine.actingMemberId!, 'Đồ uống');
+  while (engine.stage === 'description')
+    engine.describe(engine.actingMemberId!, `Gợi ý ${engine.descriptions.length}`);
 }
 function expire(engine: WhiteHatEngine) {
   jest.setSystemTime(engine.deadlineAt!);
@@ -102,7 +103,7 @@ describe('WhiteHatEngine', () => {
     expect(engine.actingMemberId).toBe('1');
     expect(engine.roundNumber).toBe(2);
   });
-  it('validates ballots, preserves submissions and waits a uniform last-guess window without a white hat', () => {
+  it('validates ballots, preserves submissions and waits for a living white hat', () => {
     const engine = game();
     describeAll(engine);
     engine.advance();
@@ -182,9 +183,9 @@ describe('WhiteHatEngine', () => {
     expect(engine.result?.winner).toBe('spy');
     expect(engine.timeout(round, turn)).toBe(false);
   });
-  it('accepts voluntary guesses only at both breaks and wrong guesses eliminate immediately', () => {
+  it('accepts voluntary guesses throughout play and wrong guesses eliminate immediately', () => {
     const engine = game();
-    expect(() => engine.guess('1', 'Cà phê')).toThrow();
+    expect(engine.canGuess('1')).toBe(true);
     describeAll(engine);
     expect(engine.canGuess('1')).toBe(true);
     expect(() => engine.guess('2', 'Cà phê')).toThrow();
@@ -213,7 +214,6 @@ describe('WhiteHatEngine', () => {
     expire(engine);
     expire(engine);
     engine.resolveTie(['0', '2', '3']);
-    expire(engine);
     expect(engine.stage).toBe('last-guess');
     expect(engine.canGuess('1')).toBe(true);
     expire(engine);

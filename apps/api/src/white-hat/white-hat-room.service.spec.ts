@@ -36,7 +36,11 @@ const ids = (s: WhiteHatSnapshot): WhiteHatActionIds => ({
 function describeAll(r: ReturnType<typeof room>) {
   while (r.service.current(r.host.sessionId).stage === 'description') {
     const s = r.service.current(r.host.sessionId);
-    r.service.describe(r.sessions.get(s.actingMemberId!)!, ids(s), 'Một đồ uống');
+    r.service.describe(
+      r.sessions.get(s.actingMemberId!)!,
+      ids(s),
+      `Gợi ý ${s.descriptions.length}`,
+    );
   }
 }
 
@@ -60,7 +64,7 @@ describe('WhiteHatRoomService privacy and lifecycle', () => {
       expect(s.moderator).toBeUndefined();
       expect(s.result).toBeUndefined();
       expect(s.players.every((p) => p.role === undefined)).toBe(true);
-      expect(s.legalActions.canGuess).toBe(false);
+      expect(s.legalActions.canGuess).toBe(role === 'white-hat');
     }
     expect(() => r.service.describe(r.host.sessionId, ids(state), 'x')).toThrow();
   });
@@ -165,6 +169,59 @@ describe('WhiteHatRoomService privacy and lifecycle', () => {
       }),
     ).toThrow();
   });
+  it('stores self-selected avatars across reconnect, new matches and moderator transfer without resetting turns', () => {
+    const r = room();
+    const start = r.service.start(r.host.sessionId);
+    const [member, session] = [...r.sessions][0];
+    for (const value of [-1, 12, 1.5, '2', null, NaN])
+      expect(() => r.service.setAvatar(session, value)).toThrow();
+    const changed = r.service.setAvatar(session, 11);
+    expect(changed.turnId).toBe(start.turnId);
+    expect(changed.deadlineAt).toBe(start.deadlineAt);
+    expect(changed.players.find((p) => p.memberId === member)?.avatarId).toBe(11);
+    expect(
+      r.service.current(r.host.sessionId).players.find((p) => p.memberId === member)?.avatarId,
+    ).toBe(11);
+    r.service.setConnected(session, false);
+    expect(
+      r.service.setConnected(session, true).players.find((p) => p.memberId === member)?.avatarId,
+    ).toBe(11);
+    r.service.endMatch(r.host.sessionId, ids(start));
+    r.service.configure(r.host.sessionId, start.moderator!);
+    const next = r.service.start(r.host.sessionId);
+    expect(next.players.find((p) => p.memberId === member)?.avatarId).toBe(11);
+    r.service.endMatch(r.host.sessionId, ids(next));
+    const transfer = r.service.transferHost(r.host.sessionId, member);
+    expect(transfer.players.find((p) => p.memberId === member)?.avatarId).toBe(11);
+  });
+  it('allows only the moderator to end a current match, even at an expired deadline, and keeps the room', () => {
+    const r = room();
+    const start = r.service.start(r.host.sessionId);
+    const session = [...r.sessions.values()][0];
+    expect(() => r.service.endMatch(session, ids(start))).toThrow();
+    expect(() => r.service.endMatch(r.host.sessionId, { ...ids(start), matchId: 'old' })).toThrow();
+    jest.setSystemTime(start.deadlineAt!);
+    const ended = r.service.endMatch(r.host.sessionId, ids(start));
+    expect(ended.result).toMatchObject({
+      outcome: 'cancelled',
+      winner: null,
+      winnerMemberIds: [],
+      civilianWord: 'Cà phê',
+      spyWord: 'Trà sữa',
+    });
+    expect(ended.stage).toBe('finished');
+    expect(ended.deadlineAt).toBeUndefined();
+    const guest = r.service.current(session);
+    expect(guest.players.filter((p) => !p.isModerator).every((p) => p.role)).toBe(true);
+    expect(guest.legalActions.canGuess).toBe(false);
+    expect(() => r.service.guess(session, ids(start), 'Cà phê')).toThrow();
+    expect(r.service.timeout(start.roomCode, start.roundId!, start.turnId!)).toBeUndefined();
+    expect(() => r.service.start(r.host.sessionId)).toThrow();
+    r.service.configure(r.host.sessionId, start.moderator!);
+    const next = r.service.start(r.host.sessionId);
+    expect(next.matchId).not.toBe(start.matchId);
+    expect(() => r.service.endMatch(r.host.sessionId, ids(start))).toThrow();
+  });
 });
 
 describe('White-hat facade and gateway integrity', () => {
@@ -204,7 +261,12 @@ describe('White-hat facade and gateway integrity', () => {
     service.start(host.sessionId);
     let s = service.current(host.sessionId) as unknown as WhiteHatSnapshot;
     while (s.stage === 'description') {
-      service.whiteHatAction(sessions.get(s.actingMemberId!)!, 'describe', ids(s), 'x');
+      service.whiteHatAction(
+        sessions.get(s.actingMemberId!)!,
+        'describe',
+        ids(s),
+        `Gợi ý ${s.descriptions.length}`,
+      );
       s = service.current(host.sessionId) as unknown as WhiteHatSnapshot;
     }
     const white = s.moderator!.roles.find((p) => p.role === 'white-hat')!.memberId;
@@ -276,6 +338,29 @@ describe('White-hat facade and gateway integrity', () => {
       (rooms.current(host.sessionId) as unknown as WhiteHatSnapshot).descriptions,
     ).toHaveLength(1);
     expect(gateway.describeWhiteHat(replacement, { ...body, commandId: 'stale' }).ok).toBe(false);
+    expect(gateway.setWhiteHatAvatar(actor, { commandId: 'old-avatar', avatarId: 3 }).ok).toBe(
+      false,
+    );
+    expect(
+      gateway.setWhiteHatAvatar(replacement, { commandId: 'bad-avatar', avatarId: 12 }).ok,
+    ).toBe(false);
+    expect(gateway.setWhiteHatAvatar(replacement, { commandId: 'avatar', avatarId: 3 }).ok).toBe(
+      true,
+    );
+    const version = rooms.current(host.sessionId).version;
+    expect(gateway.setWhiteHatAvatar(replacement, { commandId: 'avatar', avatarId: 3 }).ok).toBe(
+      true,
+    );
+    expect(rooms.current(host.sessionId).version).toBe(version);
+    const current = rooms.current(host.sessionId) as unknown as WhiteHatSnapshot;
+    const end = { ...ids(current), commandId: 'end-match' };
+    expect(gateway.endWhiteHat(replacement, end).ok).toBe(false);
+    expect(gateway.endWhiteHat(hostSocket, end).ok).toBe(true);
+    expect(gateway.endWhiteHat(hostSocket, end).ok).toBe(true);
+    expect(
+      (rooms.current(host.sessionId) as unknown as WhiteHatSnapshot).result?.winner,
+    ).toBeNull();
+    expect(jest.getTimerCount()).toBe(0);
     gateway.handleDisconnect(hostSocket);
     jest.advanceTimersByTime(180000);
     expect(() => rooms.current(host.sessionId)).toThrow();
