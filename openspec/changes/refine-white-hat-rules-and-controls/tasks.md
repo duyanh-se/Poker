@@ -61,3 +61,14 @@
 - [x] Xác minh rồi dừng mọi verification process do lượt làm việc tạo, không dừng server của người dùng.
 - [x] Cập nhật README, ghi verification thực tế và đối chiếu từng acceptance criterion/spec scenario.
 - [ ] Nhận human acceptance, sau đó archive và cập nhật living specs theo workflow.
+
+## 8. Hoàn thiện giao diện theo phản hồi nghiệm thu
+
+- [x] Audit 23 màn/trạng thái, đo 587 mẫu chữ và chụp hiện trạng avatar/chat/history trên desktop/mobile.
+- [x] Ghi nhận phạm vi hoàn thiện theo yêu cầu người dùng và đặc tả giao diện đã duyệt.
+- [x] Sửa CSS theme tối rò vào header lồng và màu nhãn người bị loại; rà các cặp chữ/nền còn lại.
+- [x] Sửa avatar bị co, thêm preview lớn, nhãn đang dùng/đang chọn và bố cục thích ứng.
+- [x] Tăng cỡ chữ chat, phân biệt người gửi/tin của mình, trình bày giờ từ sentAt và vùng nhập rõ ràng.
+- [x] Làm rõ các vòng mô tả, bảng phiếu và lượt đoán trong hai nhóm lịch sử hiện có.
+- [x] Kiểm thử hành vi liên quan, rerun audit/ảnh/contrast, tests/lint/typecheck/build/format và hồi quy E2E; cleanup server.
+- [x] Cập nhật verification và ảnh thực tế để người dùng nghiệm thu.

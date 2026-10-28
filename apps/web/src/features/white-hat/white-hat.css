@@ -16,6 +16,7 @@ body:has(.wh-game) {
   --wh-ink: #182343;
   --wh-muted: #526581;
   --wh-line: #c6d8f4;
+  --wh-control-line: #7186a8;
   --wh-coral: #ff7750;
   --wh-sun: #ffd75e;
   --wh-green: #168a50;
@@ -123,6 +124,9 @@ body:has(.wh-game) {
   background: var(--wh-coral);
   box-shadow: 0 4px 0 #dc512b;
 }
+.wh-game button.wh-coral:hover:not(:disabled) {
+  background: #f16a44;
+}
 .wh-game button.wh-secondary {
   background: #eaf1ff;
   border-color: #d4e0ff;
@@ -160,7 +164,7 @@ body:has(.wh-game) {
   min-width: 0;
   min-height: 48px;
   margin: 0;
-  border: 2px solid #d0def5;
+  border: 2px solid var(--wh-control-line);
   border-radius: 14px;
   padding: 12px 14px;
   background: #f4f8ff;
@@ -1120,7 +1124,7 @@ body:has(.wh-game) {
 }
 .wh-clues strong {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
   color: #516180;
 }
 .wh-clues p {
@@ -1131,7 +1135,7 @@ body:has(.wh-game) {
   background: #eaf1ff;
   color: var(--wh-ink);
   margin-top: 5px;
-  font-size: 15px;
+  font-size: 16px;
   overflow-wrap: anywhere;
 }
 .wh-tallies {
@@ -1145,11 +1149,11 @@ body:has(.wh-game) {
   background: #edf3ff;
   padding: 7px 10px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 16px;
 }
 .wh-vote-history ul {
   padding: 12px 0 12px 20px;
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.9;
 }
 .wh-guess-log {
@@ -1157,7 +1161,7 @@ body:has(.wh-game) {
   border-radius: 14px;
   padding: 12px;
   margin-top: 12px !important;
-  font-size: 14px;
+  font-size: 16px;
 }
 .wh-guess-log.is-correct {
   background: #dff4e9;
@@ -1174,12 +1178,12 @@ body:has(.wh-game) {
   font-weight: 900;
 }
 .wh-empty p {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
 }
 .wh-empty small {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
   margin-top: 5px;
 }
 .wh-chat {
@@ -1224,7 +1228,7 @@ body:has(.wh-game) {
   min-width: 0;
 }
 .wh-chat-log strong {
-  font-size: 11px;
+  font-size: 14px;
   color: #506282;
 }
 .wh-chat-log p {
@@ -1232,7 +1236,7 @@ body:has(.wh-game) {
   border-radius: 4px 12px 12px;
   background: #edf3ff;
   margin-top: 3px;
-  font-size: 12px;
+  font-size: 16px;
   overflow-wrap: anywhere;
 }
 .wh-chat form {
@@ -1242,7 +1246,7 @@ body:has(.wh-game) {
   padding-top: 14px;
 }
 .wh-game .wh-chat input {
-  font-size: 14px;
+  font-size: 16px;
   padding: 10px;
   min-height: 44px;
 }

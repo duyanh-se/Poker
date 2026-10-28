@@ -221,10 +221,10 @@ export function History({ table }: { table: WhiteHatSnapshot }) {
     <section className="wh-history wh-surface" aria-label="Diễn biến">
       <header>
         <div>
-          <span className="wh-kicker">MANH MỐI TRÊN BÀN</span>
-          <h2>Chuyện trong phòng</h2>
+          <span className="wh-kicker">LỊCH SỬ VÁN CHƠI</span>
+          <h2>Diễn biến theo vòng</h2>
         </div>
-        <span className="wh-counter">{table.descriptions.length} mô tả</span>
+        <span className="wh-counter">{table.descriptions.length} lượt mô tả</span>
       </header>
       <div className="wh-tabs" role="group" aria-label="Chọn lịch sử">
         <button aria-pressed={tab === 'clues'} onClick={() => setTab('clues')}>
@@ -237,13 +237,22 @@ export function History({ table }: { table: WhiteHatSnapshot }) {
       {tab === 'clues' ? (
         rounds.length ? (
           rounds.map((round) => (
-            <details key={round} open={round === table.roundNumber}>
-              <summary>Vòng {round}</summary>
+            <details className="wh-round-history" key={round} open={round === rounds[0]}>
+              <summary>
+                <span>Vòng {round}</span>
+                <span className="wh-history-round-meta">
+                  {round === rounds[0] ? 'Mới nhất · ' : ''}
+                  {table.descriptions.filter((d) => d.roundNumber === round).length} lượt
+                </span>
+              </summary>
               <ol className="wh-clues">
                 {table.descriptions
                   .filter((d) => d.roundNumber === round)
                   .map((d) => (
-                    <li key={`${round}:${d.memberId}`}>
+                    <li
+                      key={`${round}:${d.memberId}`}
+                      className={d.text === null ? 'is-skipped' : ''}
+                    >
                       <Avatar identity={d.memberId} position={avatarPosition(table, d.memberId)} />
                       <div>
                         <strong>{names(d.memberId)}</strong>
@@ -268,10 +277,15 @@ export function History({ table }: { table: WhiteHatSnapshot }) {
               <p className="wh-muted">Phiếu được công khai khi chốt lượt bầu.</p>
             )}
             {table.ballotResults.map((b, i) => (
-              <details key={i}>
+              <details
+                className="wh-round-history"
+                key={i}
+                open={i === table.ballotResults.length - 1}
+              >
                 <summary>
                   Vòng {b.roundNumber} · {b.runoff ? 'Bầu lại' : 'Bỏ phiếu'}
                 </summary>
+                <h3 className="wh-history-subheading">Tổng phiếu</h3>
                 <div className="wh-tallies">
                   {b.totals.map((t) => (
                     <div key={t.memberId}>
@@ -280,22 +294,29 @@ export function History({ table }: { table: WhiteHatSnapshot }) {
                     </div>
                   ))}
                 </div>
-                <ul>
+                <h3 className="wh-history-subheading">Ai đã bầu ai?</h3>
+                <ul className="wh-ballot-list">
                   {b.ballots.map((v) => (
                     <li key={v.memberId}>
-                      {names(v.memberId)} → {v.targetIds.map(names).join(', ')}
+                      <strong>{names(v.memberId)}</strong>
+                      <span aria-hidden="true"> → </span>
+                      <span>{v.targetIds.map(names).join(', ')}</span>
                     </li>
                   ))}
                 </ul>
               </details>
             ))}
           </div>
-          {table.guesses.map((g, i) => (
-            <p className={`wh-guess-log ${g.correct ? 'is-correct' : ''}`} key={i}>
-              <strong>{names(g.memberId)}</strong> lộ diện: “{g.text}” ·{' '}
-              {g.correct ? 'Đúng!' : 'Sai, đã bị loại.'}
-            </p>
-          ))}
+          <section className="wh-guess-history" aria-label="Lượt lộ diện và đoán">
+            <h3 className="wh-history-subheading">Lượt lộ diện và đoán</h3>
+            {!table.guesses.length && <p className="wh-muted">Chưa có lượt đoán từ.</p>}
+            {table.guesses.map((g, i) => (
+              <p className={`wh-guess-log ${g.correct ? 'is-correct' : ''}`} key={i}>
+                <strong>{names(g.memberId)}</strong> lộ diện: “{g.text}” ·{' '}
+                {g.correct ? 'Đúng!' : 'Sai, đã bị loại.'}
+              </p>
+            ))}
+          </section>
         </>
       )}
     </section>
@@ -368,10 +389,26 @@ export function WhiteChat({
               </div>
             )}
             {chat.messages.map((m) => (
-              <article key={m.id}>
+              <article
+                key={m.id}
+                className="wh-chat-message"
+                data-own={m.memberId === table.viewerMemberId}
+              >
                 <Avatar identity={m.memberId} position={avatarPosition(table, m.memberId)} />
                 <div>
-                  <strong>{m.displayName}</strong>
+                  <div className="wh-chat-meta">
+                    <strong>
+                      {m.memberId === table.viewerMemberId
+                        ? `${m.displayName} · Bạn`
+                        : m.displayName}
+                    </strong>
+                    <time dateTime={new Date(m.sentAt).toISOString()}>
+                      {new Intl.DateTimeFormat('vi-VN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }).format(m.sentAt)}
+                    </time>
+                  </div>
                   <p>{m.text}</p>
                 </div>
               </article>

@@ -76,6 +76,16 @@ Không giấu overflow để che lỗi. Thu gọn nội dung phụ, khoảng cá
 
 ## Kiểm chứng và rollout
 
+### Phản hồi nghiệm thu giao diện, 2026-10-28
+
+Người dùng yêu cầu rà toàn bộ màu chữ/nền Mũ Trắng, làm phần chọn nhân vật đẹp/rõ hơn và chat/lịch sử dễ đọc hơn. Đây là hoàn thiện các bề mặt đã được duyệt trong change hiện tại, gồm yêu cầu Secret Party sáng, avatar đủ quan sát và toàn bộ dialog được cô lập khỏi theme bàn bài. Không mở rộng luật, API, dữ liệu hay tính năng ngoài phạm vi đó.
+
+Audit ứng dụng thật ở 23 màn/trạng thái, 587 mẫu chữ cho thấy `.panel header` toàn cục áp nền `#152024` vào header lồng của chat/history, khiến chữ ink chỉ có tương phản khoảng 1.08:1. Bộ chọn avatar bị track grid co theo nhãn số vì kế thừa `justify-content:center`, làm hình thu rất nhỏ. Chat dùng nội dung 12px/tên 11px/input 14px; trạng thái người bị loại đạt khoảng 4.41:1, dưới mục tiêu chữ thường 4.5:1.
+
+Hướng sửa: cô lập header lồng và token nền/chữ trong Mũ Trắng, giữ cobalt/ink và nền sáng; làm nhãn phụ dễ đọc, giữ focus/selected/disabled có nghĩa rõ. Avatar picker có preview lớn, tên hiển thị “Nhân vật 01…12”, dấu chọn + trạng thái “Đang dùng/Đang chọn”, tile kích thước tường minh, grid thích ứng và nút lưu luôn dễ tìm. Chat tăng nội dung/input lên 16px, tên 14px, phân biệt tin của mình/người khác và dùng `sentAt` có sẵn; bỏ header tối/khung lồng gây nhiễu, giữ bản nháp và logic đọc/cuộn hiện có. Lịch sử giữ hai nhóm hiện có, làm rõ vòng, tác giả, mô tả, tổng phiếu/ai bầu ai và lượt đoán thành các khu có nhãn riêng; chữ chính 16px, metadata 14px. Không thêm timestamp/vòng cho guess khi snapshot không cung cấp.
+
+Kiểm chứng lại ảnh và computed colors ở các bề mặt lobby/config, mô tả, discussion, vote/revote/tie-break, last-guess/read-only, finish, picker, chat/history rỗng/có dữ liệu, bí mật quản trò, luật, quản lý và lời mời. Kiểm tra normal/hover/focus/selected/disabled, desktop 1280×720 và mobile 320/390/430; giữ nguyên tiêu chí màn chơi desktop không cuộn. So sánh màu theo [W3C text contrast](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html) và [non-text contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html), không coi màu disabled hoặc đồ trang trí là lỗi chữ bắt buộc.
+
 TDD cho luật: mô tả Unicode 15/16, trùng khác hoa/khoảng trắng/NFKC/toàn ván, token có dấu/câu/ranh giới, invalid không mutate; đoán ở mọi stage, vote sai hủy đúng và actor sai chuyển đúng; cửa sổ có/không quyền, timeout không giết người sống, chỉ mũ trắng không chờ hai lần; dừng trước/sau deadline và đua kết quả.
 
 Service/gateway kiểm tra lọc bí mật, các quyền chủ/khách, stale/retry/expired socket, avatar malformed/self-only/đồng bộ/không đổi deadline và room reuse sau cancel. Sửa fixture cũ gửi lặp cùng mô tả: tạo clue khác nhau hợp lệ, không nới rule để giữ tests.

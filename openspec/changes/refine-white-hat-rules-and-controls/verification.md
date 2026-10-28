@@ -11,7 +11,7 @@ Ngày 2026-10-28. Đã triển khai và kiểm chứng các yêu cầu được 
 - Chọn một trong 12 avatar sẵn có, cho phép trùng, chỉ sửa chính thành viên của session. Đồng bộ snapshot và giữ qua reconnect/ván mới/chuyển quản trò trong cùng phòng; không đổi turn/deadline/phiếu.
 - Quản trò có xác nhận kết thúc riêng ván active. Kết quả `cancelled`, `winner: null`, không ăn mừng; công bố role/hai từ, hủy deadline/quyền đoán, giữ phòng và yêu cầu lưu bộ từ cho ván mới.
 
-## Checks đã chạy
+## Checks của lượt triển khai ban đầu
 
 | Lệnh                                                     | Kết quả                                                              |
 | -------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -60,3 +60,25 @@ Playwright dùng riêng 3100/3101 và không tái sử dụng server của ngư�
 README đã cập nhật luật và thao tác. `.gitignore` chỉ thêm ngoại lệ để bộ tài liệu change này được theo dõi. Deploy API và Web cùng nhau vì contract Mũ Trắng bổ sung avatar và kết quả hủy; không cần migration hoặc biến môi trường mới. Chưa deploy lên dịch vụ ngoài.
 
 Phần còn lại: human acceptance, sau đó archive và cập nhật living specs theo workflow.
+
+## Hoàn thiện giao diện theo phản hồi nghiệm thu
+
+Ngày 2026-10-28, người dùng yêu cầu kiểm tra toàn bộ màu chữ/nền và cải thiện chọn nhân vật, chat, lịch sử. Đã hoàn thiện trong phạm vi giao diện của change hiện tại; không đổi luật, API, contract hoặc dependency. Chi tiết lỗi, cách đo và ảnh trước/sau ở [báo cáo giao diện](ui-clarity/README.md).
+
+- Audit lại 23 màn/trạng thái, 667 mẫu chữ. Không còn mẫu chữ enabled trên nền phẳng dưới ngưỡng tương ứng; gradient/ảnh và trạng thái focus/selected được xem riêng. Header chat/lịch sử từ 1.08:1 lên 15.29:1; nhãn người bị loại từ 4.41:1 lên 5.23:1.
+- Picker có preview, ảnh rõ kích thước, nhãn đang dùng/đang chọn. 12 lựa chọn và nút lưu vừa 1280×720 không cần cuộn. Trên điện thoại 320px, lựa chọn cuối khi focus không bị footer che; save luôn trong viewport.
+- Chat dùng nội dung/input 16px, tên 14px, nhãn tin của bạn và giờ gửi từ dữ liệu thật. Lịch sử có vòng mới nhất, tổng phiếu, chi tiết người bầu và kết quả đoán rõ ràng, giữ hai nhóm dữ liệu hiện có.
+- Xem ảnh thực tế desktop/mobile của picker/chat/history, bảng phiếu, màn mô tả và luật; giữ bố cục màn chơi 12 người, reduced motion, bí mật và focus bàn phím.
+
+| Lệnh                                                     | Kết quả sau hoàn thiện UI                                                   |
+| -------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `npm run test`                                           | PASS: 135 API + 116 web = 251 tests                                         |
+| `npm run test --workspace=@poker/web -- white-hat-table` | PASS: 16 tests                                                              |
+| `npm run lint`                                           | PASS                                                                        |
+| `npm run typecheck`                                      | PASS: API, web, contracts                                                   |
+| `npm run build`                                          | PASS: API, production web/standalone, contracts                             |
+| `npm run format:check`                                   | PASS                                                                        |
+| `npm run test:e2e`                                       | PASS: 65/65, gồm ca clarity mới, Mũ Trắng 12 người và hồi quy hai game khác |
+| Audit Playwright riêng 23 màn                            | PASS; ảnh và computed colors sau sửa đã lưu trong change                    |
+
+Sau lượt E2E cuối, kiểm tra OS xác nhận cổng 3100/3101 không còn listener và không còn tiến trình server/Playwright kiểm thử của workspace. Các lệnh build/test kết thúc. Generated `next-env.d.ts` và `tsconfig.tsbuildinfo` được trả về nội dung trước verification. Chờ human acceptance; chưa archive.
