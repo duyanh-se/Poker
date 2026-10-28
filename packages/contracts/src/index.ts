@@ -218,6 +218,14 @@ export interface WhiteHatBallotResult {
   ballots: Array<{ memberId: string; targetIds: string[] }>;
   totals: Array<{ memberId: string; votes: number }>;
 }
+export type WhiteHatOutcome =
+  | { winner: WhiteHatRole; winnerMemberIds: string[]; outcome?: 'victory' }
+  | {
+      winner: null;
+      winnerMemberIds: string[];
+      outcome: 'cancelled';
+      reason: 'moderator-ended';
+    };
 export interface WhiteHatSnapshot {
   gameType: 'white-hat';
   version: number;
@@ -243,6 +251,7 @@ export interface WhiteHatSnapshot {
     connected: boolean;
     isHost: boolean;
     isModerator: boolean;
+    avatarId?: number;
     eliminated: boolean;
     departed: boolean;
     role?: WhiteHatRole;
@@ -261,9 +270,7 @@ export interface WhiteHatSnapshot {
   lastEliminatedIds: string[];
   notice?: string;
   legalActions: { canDescribe: boolean; canVote: boolean; canGuess: boolean; canChat: boolean };
-  result?: {
-    winner: WhiteHatRole;
-    winnerMemberIds: string[];
+  result?: WhiteHatOutcome & {
     civilianWord: string;
     spyWord: string;
   };

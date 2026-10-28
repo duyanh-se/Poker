@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import '../features/liars/liars.css';
 @import '../features/white-hat/white-hat.css';
+@import '../features/white-hat/white-hat-layout.css';
 .seat.winner {
   border-color: #e6be77;
   background: linear-gradient(#47402b, #19251f);

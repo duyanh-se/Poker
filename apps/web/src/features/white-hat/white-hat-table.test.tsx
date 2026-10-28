@@ -222,4 +222,95 @@ describe('Mũ Trắng controls', () => {
     });
     expect(screen.getByRole('button', { name: 'Bắt đầu ván Mũ Trắng' })).toBeDisabled();
   });
+  it('counts Unicode descriptions and rejects duplicate clues from previous rounds inline', () => {
+    const table = snapshot();
+    table.descriptions = [{ roundNumber: 0, memberId: 'b', text: 'Buổi sáng' }];
+    const p = props(table);
+    render(<WhiteHatTable {...p} />);
+    const input = screen.getByLabelText('Mô tả của bạn');
+    fireEvent.change(input, { target: { value: '😀'.repeat(16) } });
+    expect(screen.getByRole('button', { name: 'Gửi mô tả' })).toBeDisabled();
+    expect(screen.getByText('Mô tả tối đa 15 ký tự.')).toBeVisible();
+    fireEvent.change(input, { target: { value: ' BUỔI   SÁNG ' } });
+    expect(screen.getByRole('button', { name: 'Gửi mô tả' })).toBeDisabled();
+    fireEvent.change(input, { target: { value: '😀'.repeat(15) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi mô tả' }));
+    expect(p.send).toHaveBeenCalledWith(
+      'white-hat:describe',
+      expect.objectContaining({ text: '😀'.repeat(15) }),
+    );
+  });
+  it('shows clues during voting and uses the public avatar selection', () => {
+    const table = snapshot();
+    table.stage = 'voting';
+    table.candidateIds = ['b'];
+    table.players.find((p) => p.memberId === 'b')!.avatarId = 11;
+    table.descriptions = [{ memberId: 'b', roundNumber: 1, text: 'Buổi sáng' }];
+    const view = render(<WhiteHatTable {...props(table)} />);
+    expect(screen.getByText('Buổi sáng')).toBeVisible();
+    expect(view.container.querySelector('[data-member="b"] .wh-avatar')).toHaveAttribute(
+      'data-avatar',
+      '11',
+    );
+  });
+  it('saves a self-selected character without a target member or gameplay ids', () => {
+    const p = props();
+    render(<WhiteHatTable {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Nhân vật' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Nhân vật 12' }));
+    expect(p.send).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu nhân vật' }));
+    expect(p.send).toHaveBeenCalledWith('white-hat:set-avatar', { avatarId: 11 });
+  });
+  it('keeps submission feedback and full ballot review alongside the white hat guess form', () => {
+    const table = snapshot();
+    table.stage = 'voting';
+    table.ownBallot = ['b', 'c', 'd'];
+    table.legalActions = { canDescribe: false, canVote: false, canGuess: true, canChat: true };
+    render(<WhiteHatTable {...props(table)} />);
+    expect(screen.getByRole('heading', { name: 'Phiếu đã gửi!' })).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Đoán từ dân thường' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Xem lựa chọn' }));
+    const dialog = screen.getByRole('dialog', { name: 'Danh sách lựa chọn' });
+    for (const name of ['Name b', 'Name c', 'Name d']) expect(dialog).toHaveTextContent(name);
+  });
+  it('confirms ending separately from room closure and renders cancellation without a winner', () => {
+    const table = snapshot();
+    table.viewerMemberId = 'host';
+    table.privateWord = undefined;
+    table.legalActions.canDescribe = false;
+    const p = props(table);
+    const view = render(<WhiteHatTable {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Kết thúc ván' }));
+    expect(p.send).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận kết thúc ván' }));
+    expect(p.send).toHaveBeenCalledWith('white-hat:end-match', {
+      matchId: 'match',
+      roundId: 'round',
+      turnId: 'turn',
+    });
+    view.rerender(
+      <WhiteHatTable
+        {...p}
+        table={{
+          ...table,
+          stage: 'finished',
+          matchStatus: 'finished',
+          result: {
+            outcome: 'cancelled',
+            reason: 'moderator-ended',
+            winner: null,
+            winnerMemberIds: [],
+            civilianWord: 'Cà phê',
+            spyWord: 'Trà',
+          },
+        }}
+        animate
+      />,
+    );
+    expect(screen.getByRole('status', { name: 'Kết quả ván' })).toHaveTextContent(
+      'Không có phe thắng',
+    );
+    expect(screen.getByRole('status', { name: 'Kết quả ván' })).not.toHaveClass('wh-celebrate');
+  });
 });

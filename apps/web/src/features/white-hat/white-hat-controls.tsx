@@ -146,30 +146,38 @@ export function Moderator({
   send: WhiteHatSend;
 }) {
   return (
-    <section className="wh-moderator wh-surface">
-      <span className="wh-kicker">BẠN CẦM NHỊP CUỘC CHƠI</span>
-      <h2>Điều hành</h2>
-      <p>Giữ bí mật và để cả nhóm tự suy luận.</p>
+    <section
+      className={`wh-moderator wh-surface ${table.stage === 'tie-break' ? 'wh-moderator-compact' : ''}`}
+    >
+      {table.stage !== 'tie-break' && (
+        <>
+          <span className="wh-kicker">BẠN CẦM NHỊP CUỘC CHƠI</span>
+          <h2>Điều hành</h2>
+          <p>Giữ bí mật và để cả nhóm tự suy luận.</p>
+        </>
+      )}
       <button className="wh-secondary wh-full" onClick={toggle}>
         {visible ? 'Che bí mật quản trò' : 'Xem bí mật quản trò'}
       </button>
       {visible && table.moderator && (
-        <div className="wh-secrets">
-          <p>
-            Dân thường: <strong>{table.moderator.civilianWord}</strong>
-          </p>
-          <p>
-            Gián điệp: <strong>{table.moderator.spyWord}</strong>
-          </p>
-          <ul>
-            {table.moderator.roles.map((p) => (
-              <li key={p.memberId}>
-                <span>{memberName(table, p.memberId)}</span>
-                <strong>{roleNames[p.role]}</strong>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <Panel title="Bí mật quản trò" close={toggle}>
+          <div className="wh-secrets">
+            <p>
+              Dân thường: <strong>{table.moderator.civilianWord}</strong>
+            </p>
+            <p>
+              Gián điệp: <strong>{table.moderator.spyWord}</strong>
+            </p>
+            <ul>
+              {table.moderator.roles.map((p) => (
+                <li key={p.memberId}>
+                  <span>{memberName(table, p.memberId)}</span>
+                  <strong>{roleNames[p.role]}</strong>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Panel>
       )}
       {['discussion', 'intermission'].includes(table.stage) && (
         <button
@@ -182,7 +190,7 @@ export function Moderator({
         </button>
       )}
       {table.stage === 'last-guess' && (
-        <p className="wh-form-note">Đợi đủ 30 giây trước khi xét thắng theo phe.</p>
+        <p className="wh-form-note">Đang chờ quyết định đoán từ trước khi xét thắng theo phe.</p>
       )}
     </section>
   );
@@ -192,13 +200,19 @@ export function Actions({
   selected,
   locked,
   send,
+  message = '',
 }: {
   table: WhiteHatSnapshot;
   selected: string[];
   locked: boolean;
   send: WhiteHatSend;
+  message?: string;
 }) {
   const [guess, setGuess] = useState('');
+  const [description, setDescription] = useState('');
+  const [submittedText, setSubmittedText] = useState('');
+  const [guessOpen, setGuessOpen] = useState(false);
+  const [review, setReview] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const hostTie = table.hostMemberId === table.viewerMemberId && table.stage === 'tie-break';
   const voting = table.legalActions.canVote || hostTie;
@@ -207,6 +221,45 @@ export function Actions({
     living.some((p) => p.memberId === id),
   ).length;
   const names = (id: string) => memberName(table, id);
+  const normalized = description.normalize('NFKC').trim().replace(/\s+/gu, ' ');
+  const length = [...normalized].length;
+  const duplicate = table.descriptions.some(
+    (d) =>
+      d.text !== null &&
+      d.text.normalize('NFKC').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('vi') ===
+        normalized.toLocaleLowerCase('vi'),
+  );
+  const descriptionError =
+    length > 15 ? 'Mô tả tối đa 15 ký tự.' : duplicate ? 'Mô tả này đã được dùng trong ván.' : '';
+  const simultaneous = table.legalActions.canDescribe || voting;
+  if (table.hostMemberId === table.viewerMemberId && !hostTie) return null;
+  const guessForm = (
+    <form
+      className="wh-guess-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setConfirm(true);
+      }}
+    >
+      <span className="wh-kicker">MỘT LẦN ĐOÁN, MỘT CƠ HỘI</span>
+      <h2>{table.stage === 'last-guess' ? 'Cơ hội đoán cuối' : 'Bạn muốn lộ diện?'}</h2>
+      <label>
+        Đoán từ dân thường
+        <input
+          required
+          maxLength={80}
+          value={guess}
+          onChange={(e) => setGuess(e.target.value)}
+          autoComplete="off"
+          placeholder="Bạn đã tìm ra từ chưa?"
+        />
+      </label>
+      <p className="wh-form-note">Đúng thì thắng ngay. Sai sẽ bị loại. Đáp án cần đúng dấu.</p>
+      <button className="wh-coral wh-full" disabled={locked || !guess.trim()}>
+        Lộ diện và đoán
+      </button>
+    </form>
+  );
   return (
     <section
       className={`wh-action wh-surface ${voting ? 'wh-vote-action' : ''}`}
@@ -216,9 +269,11 @@ export function Actions({
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (!normalized || descriptionError || locked) return;
+            setSubmittedText(normalized);
             send('white-hat:describe', {
               ...actionIds(table),
-              text: new FormData(e.currentTarget).get('description'),
+              text: normalized,
             });
           }}
         >
@@ -229,18 +284,27 @@ export function Actions({
             <input
               name="description"
               required
-              maxLength={80}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              aria-invalid={Boolean(descriptionError)}
+              aria-describedby="wh-description-help wh-description-error"
               autoComplete="off"
               placeholder="Một từ hoặc cụm từ…"
             />
           </label>
-          <p className="wh-form-note">Gợi ý vừa đủ, đừng để lộ từ riêng nhé!</p>
-          <button className="wh-primary wh-full" disabled={locked}>
+          <p className="wh-form-note" id="wh-description-help">
+            {length}/15 ký tự · Không lặp mô tả đã dùng.
+          </p>
+          <p className="wh-inline-error" id="wh-description-error" role="status">
+            {descriptionError || (normalized === submittedText ? message : '')}
+          </p>
+          <button className="wh-primary wh-full" disabled={locked || Boolean(descriptionError)}>
             Gửi mô tả <span aria-hidden="true">→</span>
           </button>
         </form>
       ) : (
-        table.stage === 'description' && (
+        table.stage === 'description' &&
+        !table.legalActions.canGuess && (
           <div className="wh-waiting">
             <span className="wh-thinking" aria-hidden="true">
               …
@@ -261,12 +325,22 @@ export function Actions({
           <p>Chọn {table.ballotSize} người trên sân chơi.</p>
           {table.selectedIds.length > 0 && (
             <p className="wh-locked-picks">
-              Suất đã chốt: {table.selectedIds.map(names).join(', ')}
+              Suất đã chốt: {table.selectedIds.length} người{' '}
+              <button className="wh-quiet" onClick={() => setReview(true)}>
+                Xem danh sách
+              </button>
             </p>
           )}
           <div className="wh-selection-preview">
             {selected.length ? (
-              selected.map((id) => <span key={id}>✓ {names(id)}</span>)
+              <>
+                <span>✓ {names(selected[0])}</span>
+                {selected.length > 1 && (
+                  <button className="wh-quiet" onClick={() => setReview(true)}>
+                    +{selected.length - 1} người
+                  </button>
+                )}
+              </>
             ) : (
               <span className="wh-muted">Chạm vào nhân vật bạn nghi ngờ</span>
             )}
@@ -304,14 +378,29 @@ export function Actions({
           </div>
         </>
       )}
-      {table.ownBallot && ['voting', 'revote'].includes(table.stage) && (
-        <div className="wh-submitted">
-          <span aria-hidden="true">✓</span>
-          <h2>Phiếu đã gửi!</h2>
-          <p>{table.ownBallot.map(names).join(', ')}</p>
-          <small>Đang chờ cả nhóm chốt lựa chọn.</small>
-        </div>
-      )}
+      {table.ownBallot &&
+        table.legalActions.canGuess &&
+        ['voting', 'revote'].includes(table.stage) && (
+          <div className="wh-compact-ballot" role="status">
+            <h2>Phiếu đã gửi!</h2>
+            <button className="wh-quiet" onClick={() => setReview(true)}>
+              Xem lựa chọn
+            </button>
+          </div>
+        )}
+      {table.ownBallot &&
+        !table.legalActions.canGuess &&
+        ['voting', 'revote'].includes(table.stage) && (
+          <div className="wh-submitted">
+            <span aria-hidden="true">✓</span>
+            <h2>Phiếu đã gửi!</h2>
+            <p>Đã chọn {table.ownBallot.length} người.</p>
+            <button className="wh-quiet" onClick={() => setReview(true)}>
+              Xem lựa chọn
+            </button>
+            <small>Đang chờ cả nhóm chốt lựa chọn.</small>
+          </div>
+        )}
       {['voting', 'revote'].includes(table.stage) && !voting && !table.ownBallot && (
         <div className="wh-waiting">
           <span className="wh-thinking" aria-hidden="true">
@@ -323,32 +412,22 @@ export function Actions({
           </p>
         </div>
       )}
-      {table.legalActions.canGuess && (
-        <form
-          className="wh-guess-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setConfirm(true);
-          }}
-        >
-          <span className="wh-kicker">MỘT LẦN ĐOÁN, MỘT CƠ HỘI</span>
-          <h2>{table.stage === 'last-guess' ? 'Cơ hội đoán cuối' : 'Bạn muốn lộ diện?'}</h2>
-          <label>
-            Đoán từ dân thường
-            <input
-              required
-              maxLength={80}
-              value={guess}
-              onChange={(e) => setGuess(e.target.value)}
-              autoComplete="off"
-              placeholder="Bạn đã tìm ra từ chưa?"
-            />
-          </label>
-          <p className="wh-form-note">Đúng thì thắng ngay. Sai sẽ bị loại. Đáp án cần đúng dấu.</p>
-          <button className="wh-coral wh-full" disabled={locked || !guess.trim()}>
+      {table.legalActions.canGuess &&
+        (simultaneous ? (
+          <button
+            className="wh-coral wh-full wh-reveal"
+            disabled={locked}
+            onClick={() => setGuessOpen(true)}
+          >
             Lộ diện và đoán
           </button>
-        </form>
+        ) : (
+          guessForm
+        ))}
+      {guessOpen && !confirm && table.legalActions.canGuess && (
+        <Panel title="Đoán từ dân thường" close={() => setGuessOpen(false)}>
+          {guessForm}
+        </Panel>
       )}
       {table.stage === 'last-guess' && !table.legalActions.canGuess && (
         <div className="wh-waiting">
@@ -370,14 +449,20 @@ export function Actions({
             <p>Quản trò sẽ chuyển sang giai đoạn tiếp theo.</p>
           </div>
         )}
-      {table.stage === 'tie-break' && !hostTie && (
+      {table.stage === 'tie-break' && !hostTie && !table.legalActions.canGuess && (
         <div className="wh-waiting">
           <h2>Đợi quản trò phân xử</h2>
           <p>Nhóm hòa sẽ có kết quả trong chốc lát.</p>
         </div>
       )}
       {confirm && table.legalActions.canGuess && (
-        <Panel title="Xác nhận đoán từ" close={() => setConfirm(false)}>
+        <Panel
+          title="Xác nhận đoán từ"
+          close={() => {
+            setConfirm(false);
+            setGuessOpen(false);
+          }}
+        >
           <div className="wh-confirm-icon" aria-hidden="true">
             ?
           </div>
@@ -390,10 +475,23 @@ export function Actions({
             onClick={() => {
               send('white-hat:guess', { ...actionIds(table), text: guess });
               setConfirm(false);
+              setGuessOpen(false);
             }}
           >
             Xác nhận lộ diện và đoán
           </button>
+        </Panel>
+      )}
+      {review && (
+        <Panel title="Danh sách lựa chọn" close={() => setReview(false)}>
+          {table.selectedIds.length > 0 && (
+            <p>Suất đã chốt: {table.selectedIds.map(names).join(', ')}</p>
+          )}
+          <ul>
+            {(table.ownBallot ?? selected).map((id) => (
+              <li key={id}>{names(id)}</li>
+            ))}
+          </ul>
         </Panel>
       )}
     </section>
@@ -408,17 +506,18 @@ export function Rules() {
           không có từ. Người chơi không thấy nhãn role của mình hoặc người khác.
         </li>
         <li>
-          <strong>Mỗi người một mô tả.</strong> Có 60 giây cho một từ/cụm từ. Hết giờ bỏ lượt, không
-          bị loại.
+          <strong>Mỗi người một mô tả.</strong> Có 60 giây, tối đa 15 ký tự. Không trùng mô tả trong
+          ván và không chứa từ riêng lẻ trong từ dân thường (giữ dấu). Hết giờ bỏ lượt, không bị
+          loại.
         </li>
         <li>
           <strong>Thảo luận rồi chọn K người.</strong> Phiếu kín tới khi chốt, sau đó công khai ai
           bầu ai. Hòa thì bầu lại một lần; vẫn hòa do quản trò phân xử.
         </li>
         <li>
-          <strong>Mũ trắng có một lần đoán.</strong> Có thể lộ diện ở khoảng nghỉ trước/sau vote nếu
-          ván còn tiếp tục; bị vote loại vẫn có 30 giây đoán cuối. Đúng thắng riêng ngay, sai bị
-          loại.
+          <strong>Mũ trắng có một lần đoán.</strong> Khi còn sống được lộ diện ở mọi giai đoạn. Sau
+          vote chỉ chờ 30 giây nếu còn người có quyền đoán, gồm mũ trắng sống và người vừa bị vote
+          loại. Đúng thắng riêng ngay, sai bị loại. Người sống bỏ qua cửa sổ vẫn tiếp tục chơi.
         </li>
         <li>
           <strong>Tìm phe chiến thắng.</strong> Dân thường thắng khi hết gián điệp và mũ trắng; gián

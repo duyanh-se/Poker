@@ -152,16 +152,20 @@ export class RoomService {
   }
   whiteHatAction(
     sessionId: string,
-    action: 'describe' | 'vote' | 'guess' | 'advance' | 'resolve-tie',
+    action: 'describe' | 'vote' | 'guess' | 'advance' | 'resolve-tie' | 'end-match',
     ids: WhiteHatActionIds,
     value?: unknown,
   ): PokerTableSnapshot {
     const service = this.whiteHatOnly(sessionId);
+    if (action === 'end-match') return service.endMatch(sessionId, ids) as never;
     if (action === 'advance') return service.advance(sessionId, ids) as never;
     if (action === 'resolve-tie') return service.resolveTie(sessionId, ids, value) as never;
     if (action === 'vote') return service.vote(sessionId, ids, value) as never;
     if (action === 'guess') return service.guess(sessionId, ids, value) as never;
     return service.describe(sessionId, ids, value) as never;
+  }
+  setWhiteHatAvatar(sessionId: string, avatarId: unknown): PokerTableSnapshot {
+    return this.whiteHatOnly(sessionId).setAvatar(sessionId, avatarId) as never;
   }
 
   returnToTable(sessionId: string): PokerTableSnapshot {

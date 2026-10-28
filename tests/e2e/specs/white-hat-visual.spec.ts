@@ -60,23 +60,46 @@ test('Secret Party: twelve players, long names, keyboard voting and reduced moti
       path: test.info().outputPath('twelve-lobby-1440.png'),
       fullPage: true,
     });
+    for (const [width, height] of [
+      [1280, 720],
+      [1366, 768],
+      [1440, 900],
+      [1920, 1080],
+    ]) {
+      await page.setViewportSize({ width, height });
+      expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(
+        true,
+      );
+    }
     await page.getByLabel('Từ dân thường').fill('Máy bay');
     await page.getByLabel('Từ gián điệp').fill('Tàu hỏa');
     await page.getByRole('button', { name: 'Lưu cấu hình và từ' }).click();
     await expect(page.getByRole('button', { name: 'Bắt đầu ván Mũ Trắng' })).toBeEnabled();
     await page.getByRole('button', { name: 'Bắt đầu ván Mũ Trắng' }).click();
+    await expect
+      .poll(async () => (await state(page)).stage, { timeout: 15000 })
+      .toBe('description');
     for (let turn = 0; turn < 12; turn++) {
-      await expect.poll(async () => (await state(page)).descriptions.length).toBe(turn);
+      await expect
+        .poll(async () => (await state(page)).descriptions.length, { timeout: 15000 })
+        .toBe(turn);
       const current = await state(page);
       const actor = players.find((p) => p.id === current.actingMemberId)!;
       await actor.page.getByLabel('Mô tả của bạn').fill(`Đi xa ${turn + 1}`);
       await actor.page.getByRole('button', { name: 'Gửi mô tả', exact: true }).click();
+      await expect
+        .poll(async () => (await state(page)).descriptions.length, { timeout: 15000 })
+        .toBe(turn + 1);
     }
     await page.getByRole('button', { name: 'Mở bỏ phiếu', exact: true }).click();
-    const voter = players[0].page;
+    const whiteId = (await state(page)).moderator!.roles.find(
+      (p) => p.role === 'white-hat',
+    )!.memberId;
+    const voter = players.find((p) => p.id === whiteId)!.page;
+    const target = players.find((p) => p.id !== whiteId)!;
     await expect(voter.getByRole('button', { name: 'Gửi phiếu', exact: true })).toBeVisible();
     await voter.emulateMedia({ reducedMotion: 'reduce' });
-    const candidate = voter.getByRole('checkbox', { name: players[1].name, exact: true });
+    const candidate = voter.getByRole('checkbox', { name: target.name, exact: true });
     await candidate.focus();
     await voter.keyboard.press('Space');
     await expect(candidate).toBeChecked();
@@ -85,8 +108,16 @@ test('Secret Party: twelve players, long names, keyboard voting and reduced moti
       .locator('.wh-player .wh-avatar')
       .evaluateAll((nodes) => new Set(nodes.map((n) => n.getAttribute('data-avatar'))).size);
     expect(identityCount).toBe(12);
-    for (const width of [320, 390, 430, 1280, 1440]) {
-      await voter.setViewportSize({ width, height: 900 });
+    for (const [width, height] of [
+      [320, 740],
+      [390, 844],
+      [430, 900],
+      [1280, 720],
+      [1366, 768],
+      [1440, 900],
+      [1920, 1080],
+    ]) {
+      await voter.setViewportSize({ width, height });
       await expect
         .poll(
           () =>
@@ -120,7 +151,30 @@ test('Secret Party: twelve players, long names, keyboard voting and reduced moti
       });
       expect(overlaps).toBe(false);
       const submit = voter.getByRole('button', { name: 'Gửi phiếu', exact: true });
-      await submit.scrollIntoViewIfNeeded();
+      if (width < 1280) await submit.scrollIntoViewIfNeeded();
+      else {
+        await voter.screenshot({ path: test.info().outputPath(`desktop-${width}-bounds.png`) });
+        const dimensions = await voter.evaluate(() => ({
+          height: innerHeight,
+          scrollHeight: document.documentElement.scrollHeight,
+          board: document.querySelector('.wh-board-grid')!.getBoundingClientRect().toJSON(),
+          center: document.querySelector('.wh-sidebar')!.getBoundingClientRect().toJSON(),
+          columns: getComputedStyle(document.querySelector('.wh-board-grid')!).gridTemplateColumns,
+        }));
+        expect(dimensions.scrollHeight, JSON.stringify(dimensions)).toBeLessThanOrEqual(height);
+        const bounds = await voter.locator('.wh-player, .wh-sidebar').evaluateAll((nodes) =>
+          nodes.map((n) => {
+            const b = n.getBoundingClientRect();
+            return { top: b.top, bottom: b.bottom, left: b.left, right: b.right };
+          }),
+        );
+        expect(
+          bounds.every((b) => b.top >= 0 && b.bottom <= height && b.left >= 0 && b.right <= width),
+        ).toBe(true);
+        const center = await voter.locator('.wh-sidebar').boundingBox();
+        expect(Math.abs(center!.x + center!.width / 2 - width / 2)).toBeLessThan(8);
+        await expect(voter.locator('.wh-player-clue').first()).toContainText('Đi xa');
+      }
       expect((await submit.boundingBox())!.height).toBeGreaterThanOrEqual(44);
       const transition = await submit.evaluate((el) => getComputedStyle(el).transitionDuration);
       expect(transition.split(',').every((duration) => parseFloat(duration) === 0)).toBe(true);
@@ -130,22 +184,40 @@ test('Secret Party: twelve players, long names, keyboard voting and reduced moti
         fullPage: true,
       });
       if (width <= 430) {
-        await voter.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        await voter.getByRole('button', { name: 'Chat', exact: true }).click();
         const inputBox = await voter
           .getByRole('textbox', { name: 'Tin nhắn', exact: true })
           .boundingBox();
-        const dock = await voter.locator('.wh-action-dock').boundingBox();
-        expect(inputBox!.y + inputBox!.height).toBeLessThanOrEqual(dock!.y);
+        expect(inputBox!.y + inputBox!.height).toBeLessThanOrEqual(height);
+        await voter.getByRole('textbox', { name: 'Tin nhắn', exact: true }).fill('Bản nháp');
+        await voter.keyboard.press('Escape');
+        await expect(voter.getByRole('dialog')).toHaveCount(0);
+        await voter.getByRole('button', { name: 'Chat', exact: true }).click();
+        await expect(voter.getByRole('textbox', { name: 'Tin nhắn', exact: true })).toHaveValue(
+          'Bản nháp',
+        );
+        await voter.keyboard.press('Escape');
+        await expect(voter.getByRole('dialog')).toHaveCount(0);
       }
     }
     await voter.getByRole('button', { name: 'Gửi phiếu', exact: true }).click();
     await expect(voter.getByRole('heading', { name: 'Phiếu đã gửi!' })).toBeVisible();
-    expect((await state(voter)).ownBallot).toEqual([players[1].id]);
+    expect((await state(voter)).ownBallot).toEqual([target.id]);
     await voter.getByRole('button', { name: 'Lời mời', exact: true }).click();
     await expect(voter.getByRole('dialog', { name: 'Lời mời', exact: true })).toBeVisible();
     await voter.keyboard.press('Escape');
     await expect(voter.getByRole('dialog')).toHaveCount(0);
     await expect(voter.getByRole('button', { name: 'Lời mời', exact: true })).toBeFocused();
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.getByRole('button', { name: 'Kết thúc ván', exact: true }).click();
+    await page.getByRole('button', { name: 'Xác nhận kết thúc ván' }).click();
+    await expect(page.getByRole('status', { name: 'Kết quả ván' })).toContainText(
+      'Không có phe thắng',
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(
+      true,
+    );
+    await page.screenshot({ path: test.info().outputPath('twelve-cancelled-1280.png') });
   } finally {
     await Promise.all(contexts.map((context) => context.close()));
   }

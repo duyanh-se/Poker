@@ -2,6 +2,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import type {
   WhiteHatActionIds,
   WhiteHatBallotResult,
+  WhiteHatOutcome,
   WhiteHatRole,
   WhiteHatSetup,
   WhiteHatStage,
@@ -79,7 +80,7 @@ export class WhiteHatEngine {
   selectedIds: string[] = [];
   lastEliminatedIds: string[] = [];
   notice?: string;
-  result?: { winner: WhiteHatRole; winnerMemberIds: string[] };
+  result?: WhiteHatOutcome;
   private readonly order: string[];
   private roundOrder: string[] = [];
   private starter = -1;
@@ -118,7 +119,7 @@ export class WhiteHatEngine {
     this.nextRound();
   }
 
-  assertCurrent(ids: WhiteHatActionIds): void {
+  assertCurrent(ids: WhiteHatActionIds, allowExpired = false): void {
     if (
       this.result ||
       ids.matchId !== this.matchId ||
@@ -126,7 +127,7 @@ export class WhiteHatEngine {
       ids.turnId !== this.turnId
     )
       throw new RoomError('STALE_ACTION', 'Giai đoạn đã thay đổi.');
-    if (this.deadlineAt !== undefined && this.now() >= this.deadlineAt)
+    if (!allowExpired && this.deadlineAt !== undefined && this.now() >= this.deadlineAt)
       throw new RoomError('TURN_EXPIRED', 'Đã hết thời gian.');
   }
 
@@ -147,9 +148,7 @@ export class WhiteHatEngine {
         p.role === 'white-hat' &&
         !p.guessed &&
         !this.result &&
-        (this.stage === 'last-guess'
-          ? this.lastGuessIds.has(id)
-          : p.alive && ['discussion', 'intermission'].includes(this.stage)),
+        (p.alive || (this.stage === 'last-guess' && this.lastGuessIds.has(id))),
     );
   }
 
@@ -157,10 +156,20 @@ export class WhiteHatEngine {
     this.alive(id);
     if (this.stage !== 'description' || this.actingMemberId !== id)
       throw new RoomError('NOT_YOUR_TURN', 'Chưa đến lượt mô tả của bạn.');
+    const text =
+      typeof value === 'string' ? value.normalize('NFKC').trim().replace(/\s+/gu, ' ') : '';
+    if (!text || [...text].length > 15)
+      throw new RoomError('INVALID_DESCRIPTION', 'Mô tả cần từ 1 đến 15 ký tự.');
+    const key = wordKey(text);
+    if (this.descriptions.some((d) => d.text !== null && wordKey(d.text) === key))
+      throw new RoomError('DUPLICATE_DESCRIPTION', 'Mô tả này đã được dùng trong ván.');
+    const forbidden = new Set(wordKey(this.setup.civilianWord).match(/[\p{L}\p{N}\p{M}]+/gu));
+    if ((key.match(/[\p{L}\p{N}\p{M}]+/gu) ?? []).some((token) => forbidden.has(token)))
+      throw new RoomError('FORBIDDEN_DESCRIPTION', 'Mô tả chứa từ không được phép. Hãy đổi gợi ý.');
     this.descriptions.push({
       roundNumber: this.roundNumber,
       memberId: id,
-      text: whiteHatText(value),
+      text,
     });
     this.nextDescription();
   }
@@ -204,8 +213,21 @@ export class WhiteHatEngine {
     if (correct) this.finish('white-hat', [id]);
     else {
       p.alive = false;
-      if (this.stage !== 'last-guess') this.checkVictory();
+      this.afterElimination(id);
     }
+  }
+
+  endMatch(): void {
+    if (this.result) throw new RoomError('INVALID_STATE', 'Ván đã kết thúc.');
+    this.result = {
+      outcome: 'cancelled',
+      winner: null,
+      winnerMemberIds: [],
+      reason: 'moderator-ended',
+    };
+    this.lastGuessIds.clear();
+    this.onlyWhiteFinal = false;
+    this.enter('finished');
   }
 
   timeout(roundId: string, turnId: string): boolean {
@@ -225,17 +247,7 @@ export class WhiteHatEngine {
       });
       this.nextDescription();
     } else if (this.stage === 'voting' || this.stage === 'revote') this.closeBallot();
-    else if (this.stage === 'last-guess') {
-      for (const p of this.participants) {
-        if (!this.lastGuessIds.has(p.id)) continue;
-        p.guessed = true;
-        p.alive = false;
-      }
-      this.lastGuessIds.clear();
-      this.onlyWhiteFinal = false;
-      this.enter('intermission');
-      this.checkVictory();
-    }
+    else if (this.stage === 'last-guess') this.closeGuessWindow();
     return true;
   }
 
@@ -245,9 +257,20 @@ export class WhiteHatEngine {
     p.departed = true;
     p.alive = false;
     p.guessed = true;
-    if (!wasAlive || this.result) return;
+    if (this.result) return;
+    if (!wasAlive) {
+      if (this.stage === 'last-guess') this.afterElimination(id);
+      return;
+    }
     this.notice = 'Một người đã bỏ cuộc. Danh sách người chơi được cập nhật.';
-    if (this.stage === 'last-guess') return; // Preserve already-granted last guesses.
+    this.afterElimination(id);
+  }
+
+  private afterElimination(id: string): void {
+    if (this.stage === 'last-guess') {
+      if (!this.participants.some((p) => this.canGuess(p.id))) this.closeGuessWindow();
+      return;
+    }
     this.checkVictory();
     if (this.result || this.onlyWhiteFinal) return;
     if (['voting', 'revote', 'tie-break'].includes(this.stage)) {
@@ -256,7 +279,8 @@ export class WhiteHatEngine {
       this.selectedIds = [];
       this.ballotSize = 0;
       this.enter('discussion');
-      this.notice = 'Một người đã bỏ cuộc. Lượt bầu chưa chốt đã hủy; quản trò hãy mở bầu lại.';
+      this.notice =
+        'Danh sách người sống đã đổi. Lượt bầu chưa chốt đã hủy; quản trò hãy mở bầu lại.';
     } else if (this.stage === 'description' && this.actingMemberId === id) this.nextDescription();
   }
 
@@ -354,11 +378,32 @@ export class WhiteHatEngine {
     this.lastEliminatedIds = [...ids];
     this.lastGuessIds = new Set(
       this.participants
-        .filter((p) => ids.includes(p.id) && p.role === 'white-hat' && !p.guessed && !p.departed)
+        .filter(
+          (p) =>
+            (p.alive || ids.includes(p.id)) && p.role === 'white-hat' && !p.guessed && !p.departed,
+        )
         .map((p) => p.id),
     );
+    this.onlyWhiteFinal = this.living().every((p) => p.role === 'white-hat');
+    if (this.lastGuessIds.size) this.enter('last-guess', 30_000);
+    else {
+      this.enter('intermission');
+      this.checkVictory();
+    }
+  }
+  private closeGuessWindow(): void {
+    const final = this.onlyWhiteFinal || this.living().every((p) => p.role === 'white-hat');
+    for (const p of this.participants) {
+      if (this.lastGuessIds.has(p.id) && (!p.alive || final)) {
+        p.guessed = true;
+        p.alive = false;
+      }
+    }
+    this.lastGuessIds.clear();
     this.onlyWhiteFinal = false;
-    this.enter('last-guess', 30_000);
+    this.enter('intermission');
+    if (final) this.finish('civilian');
+    else this.checkVictory();
   }
   private checkVictory(): void {
     if (this.result) return;
@@ -375,6 +420,8 @@ export class WhiteHatEngine {
     }
   }
   private finish(winner: WhiteHatRole, winnerMemberIds?: string[]): void {
+    this.lastGuessIds.clear();
+    this.onlyWhiteFinal = false;
     this.result = {
       winner,
       winnerMemberIds:
