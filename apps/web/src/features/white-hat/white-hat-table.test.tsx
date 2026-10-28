@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { WhiteHatSnapshot } from '../../../../../packages/contracts/src';
 import { WhiteHatTable } from './white-hat-table';
-import { Victory } from './white-hat-pieces';
+import { History, Victory, WhiteChat } from './white-hat-pieces';
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function () {
@@ -261,6 +261,93 @@ describe('Mũ Trắng controls', () => {
     expect(p.send).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Lưu nhân vật' }));
     expect(p.send).toHaveBeenCalledWith('white-hat:set-avatar', { avatarId: 11 });
+  });
+  it('distinguishes the current avatar from a draft without committing a preview', () => {
+    const table = snapshot();
+    table.players.find((p) => p.memberId === 'a')!.avatarId = 2;
+    const p = props(table);
+    render(<WhiteHatTable {...p} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Nhân vật' }));
+    expect(screen.getByRole('heading', { name: 'Nhân vật 03' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Lưu nhân vật' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Nhân vật 12' }));
+    expect(screen.getByRole('heading', { name: 'Nhân vật 12' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Nhân vật 3' })).toHaveTextContent('Đang dùng');
+    expect(screen.getByRole('button', { name: 'Nhân vật 12' })).toHaveTextContent('Đang chọn');
+    expect(table.players.find((m) => m.memberId === 'a')!.avatarId).toBe(2);
+    expect(p.send).not.toHaveBeenCalled();
+  });
+  it('separates own chat messages and renders real timestamps and plain text', () => {
+    const table = snapshot();
+    const setDraft = vi.fn();
+    const view = render(
+      <WhiteChat
+        table={table}
+        connected
+        draft=""
+        setDraft={setDraft}
+        chat={{
+          messages: [
+            {
+              id: 'm1',
+              commandId: 'c1',
+              memberId: 'a',
+              displayName: 'Name a',
+              text: 'Tin của bạn',
+              sentAt: 1000,
+            },
+            {
+              id: 'm2',
+              commandId: 'c2',
+              memberId: 'b',
+              displayName: 'Name b',
+              text: '<script>hello</script>',
+              sentAt: 2000,
+            },
+          ],
+          pending: false,
+          error: '',
+          unread: 0,
+          bind: vi.fn(),
+          markOpen: vi.fn(),
+          send: vi.fn(),
+        }}
+      />,
+    );
+    expect(view.container.querySelector('[data-own="true"]')).toHaveTextContent('Name a · Bạn');
+    expect(view.container.querySelector('[data-own="false"]')).toHaveTextContent('Name b');
+    expect(view.container.querySelector('time')).toHaveAttribute(
+      'datetime',
+      '1970-01-01T00:00:01.000Z',
+    );
+    expect(screen.getByText('<script>hello</script>')).toBeVisible();
+    expect(view.container.querySelector('script')).toBeNull();
+  });
+  it('opens the newest available history round and labels closed votes and guesses', () => {
+    const table = snapshot();
+    table.roundNumber = 3;
+    table.descriptions = [
+      { roundNumber: 1, memberId: 'a', text: null },
+      { roundNumber: 2, memberId: 'b', text: 'Buổi sáng' },
+    ];
+    table.ballotResults = [
+      {
+        roundNumber: 2,
+        runoff: false,
+        totals: [{ memberId: 'c', votes: 1 }],
+        ballots: [{ memberId: 'b', targetIds: ['c'] }],
+      },
+    ];
+    table.guesses = [{ memberId: 'd', text: 'Sữa', correct: false }];
+    render(<History table={table} />);
+    expect(screen.getByText('Buổi sáng')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Phiếu bầu và lượt đoán' }));
+    expect(screen.getByRole('heading', { name: 'Tổng phiếu' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Ai đã bầu ai?' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Lượt lộ diện và đoán' })).toHaveTextContent(
+      'Sai, đã bị loại.',
+    );
+    expect(screen.queryByText('Cà phê', { exact: true })).not.toBeInTheDocument();
   });
   it('keeps submission feedback and full ballot review alongside the white hat guess form', () => {
     const table = snapshot();

@@ -457,38 +457,76 @@ export function WhiteHatTable(props: Props) {
             ) : panel === 'history' ? (
               <History key={table.matchId ?? 'lobby'} table={table} />
             ) : panel === 'avatar' ? (
-              <>
-                <p>Chọn nhân vật của bạn. Cả nhóm sẽ thấy lựa chọn này.</p>
-                <div className="wh-avatar-picker" role="group" aria-label="Nhân vật của bạn">
-                  {Array.from({ length: 12 }, (_, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      className="wh-avatar-option"
-                      aria-label={`Nhân vật ${index + 1}`}
-                      aria-pressed={avatarChoice === index}
-                      disabled={locked}
-                      onClick={() => setAvatarChoice(index)}
-                    >
-                      <Avatar identity={String(index)} position={index} />
-                      <span>
-                        {avatarChoice === index ? '✓ ' : ''}
-                        {index + 1}
-                      </span>
-                    </button>
-                  ))}
+              <div className="wh-avatar-selector">
+                <p className="wh-avatar-intro">
+                  12 nhân vật, một dấu ấn riêng. Chọn hình bạn thích để cả phòng nhận ra bạn.
+                </p>
+                <div className="wh-avatar-layout">
+                  <aside className="wh-avatar-preview" aria-label="Xem trước nhân vật">
+                    <div className="wh-avatar-preview-art">
+                      <Avatar identity={table.viewerMemberId} position={avatarChoice} />
+                    </div>
+                    <div>
+                      <span className="wh-kicker">NHÂN VẬT CỦA BẠN</span>
+                      <h3>Nhân vật {String(avatarChoice + 1).padStart(2, '0')}</h3>
+                      <p>
+                        {avatarChoice === avatarPosition(table, table.viewerMemberId)
+                          ? 'Đang dùng trong phòng'
+                          : 'Đang chọn, chưa lưu'}
+                      </p>
+                    </div>
+                  </aside>
+                  <div className="wh-avatar-picker" role="group" aria-label="Nhân vật của bạn">
+                    {Array.from({ length: 12 }, (_, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        className="wh-avatar-option"
+                        aria-label={`Nhân vật ${index + 1}`}
+                        aria-pressed={avatarChoice === index}
+                        disabled={locked}
+                        onClick={() => setAvatarChoice(index)}
+                      >
+                        <Avatar identity={String(index)} position={index} />
+                        {avatarChoice === index && (
+                          <span className="wh-avatar-check" aria-hidden="true">
+                            ✓
+                          </span>
+                        )}
+                        <span className="wh-avatar-label">
+                          Nhân vật {String(index + 1).padStart(2, '0')}
+                        </span>
+                        <span className="wh-avatar-tag">
+                          {index === avatarPosition(table, table.viewerMemberId)
+                            ? 'Đang dùng'
+                            : avatarChoice === index
+                              ? 'Đang chọn'
+                              : 'Chọn nhân vật'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <button
-                  className="wh-primary wh-full"
-                  disabled={locked}
-                  onClick={() => {
-                    send('white-hat:set-avatar', { avatarId: avatarChoice });
-                    setPanel(null);
-                  }}
-                >
-                  Lưu nhân vật
-                </button>
-              </>
+                <div className="wh-avatar-footer">
+                  <p>
+                    {avatarChoice === avatarPosition(table, table.viewerMemberId)
+                      ? 'Đây là nhân vật bạn đang dùng.'
+                      : 'Lưu để cập nhật hình đại diện cho cả phòng.'}
+                  </p>
+                  <button
+                    className="wh-primary wh-full"
+                    disabled={
+                      locked || avatarChoice === avatarPosition(table, table.viewerMemberId)
+                    }
+                    onClick={() => {
+                      send('white-hat:set-avatar', { avatarId: avatarChoice });
+                      setPanel(null);
+                    }}
+                  >
+                    Lưu nhân vật
+                  </button>
+                </div>
+              </div>
             ) : panel === 'end' ? (
               <>
                 <p>

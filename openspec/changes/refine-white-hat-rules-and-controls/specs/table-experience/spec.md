@@ -47,3 +47,15 @@ During an active match the moderator SHALL see a distinct “Kết thúc ván”
 ### Requirement: Preserve the established visual system and access
 
 The change SHALL retain Secret Party colors, local font/character assets, private-word concealment on blur/offline, recipient filtering, keyboard focus, reduced motion, input sizes of at least 16px and interactive targets of at least 44px. Mobile 320/390/430px SHALL remain playable without horizontal overflow or controls obscuring the focused input. Poker and Liars SHALL retain their current presentation and behavior.
+
+#### Scenario: Nested dialog content retains the light theme
+
+Given chat, history or another WhiteHat dialog contains its own headings, when it opens on desktop or mobile, then inner headings SHALL retain a light background and readable WhiteHat text rather than inheriting a dark table header. Normal enabled text SHALL meet 4.5:1 contrast, with the existing large-text exception, and eliminated-player labels SHALL remain readable.
+
+#### Scenario: Character artwork and selection can be inspected
+
+Given a member opens the existing 12-character chooser, then portraits SHALL have explicit usable dimensions of at least 64 CSS pixels, with a larger preview, numbered character labels, and textual current/draft selection cues. A portrait SHALL NOT shrink to the width of its numeric label. The member SHALL confirm a changed selection through the existing save command; opening, previewing or cancelling SHALL NOT change their server avatar.
+
+#### Scenario: Chat and history remain readable
+
+Given the member opens chat or history, then primary content SHALL use at least 16px text and author/metadata labels at least 14px, except compact timestamps. Chat input SHALL remain at least 16px on phones; own messages SHALL be distinguishable from other members' messages with layout and labels. Time labels SHALL use existing sentAt values. History SHALL clearly separate rounds, descriptions, vote totals, voter choices and guess outcomes using the existing public data and two history groups, without publishing unfinished ballots or inventing guess round/time metadata.
